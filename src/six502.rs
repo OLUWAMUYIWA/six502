@@ -113,17 +113,33 @@ impl Six502 {
 
             match opcode {
                 0xA9 => {
-                    let to_load = prog.index(self.pc as usize).to_owned();
+                    self.lda(AddressingMode::Immediate);
                     self.pc += 1;
-                    self.a = to_load;
-
-                    //change the flags bits
-                    self.update_flags_lda(to_load);
                 }
 
                 0xAA => {
                     self.x = self.a;
                     self.update_flags_lda(self.x);
+                }
+
+                0xA5 => {
+                    self.lda(AddressingMode::ZeroPage);
+                    self.pc += 1;
+                }
+
+                0xAD => {
+                    self.lda(AddressingMode::Absolute);
+                    self.pc += 1;
+                }
+
+                0x85 => {
+                    self.sta(AddressingMode::ZeroPage);
+                    self.pc += 1;
+                }
+
+                0x95 => {
+                    self.sta(AddressingMode::ZeroPage_X);
+                    self.pc += 1;
                 }
 
                 0x00 => {
@@ -133,6 +149,20 @@ impl Six502 {
                 _ => todo!(),
             }
         }
+    }
+}
+
+impl Six502 {
+    fn lda(&mut self, mode: AddressingMode) {
+        let addr = self.op_addr(mode);
+        let v = self.read_u8(addr);
+        self.a = v;
+        self.update_flags_lda(v);
+    }
+
+    fn sta(&mut self, mode: AddressingMode) {
+        let addr = self.op_addr(mode);
+        self.write_u8(addr, self.a);
     }
 }
 
