@@ -2,6 +2,9 @@
 
 use std::ops::{AddAssign, Index, RangeBounds};
 
+//comeback: where is jmpi
+
+
 pub struct Six502 {
     a: u8,
     x: u8,
@@ -32,59 +35,59 @@ pub enum OpCode {
     ADC, // add with carry
     AND, // logical and
     ASL, // Arithmetic shift left
-    BCC, // bramch if carry c;ear
-    BCS, // branch if carry set
-    BEQ, // branch if equla
+    BCC = 0x90, // bramch if carry c;ear
+    BCS = 0xb0, // branch if carry set
+    BEQ = 0xf0, // branch if equla
     BIT, // bit test
-    BMI, // branch if minus
-    BNE, // branch if not equal
-    BPL, // branch if positive
-    BRK, // force interrupt
-    BVC, // branch if overflow clear
-    BVS, // branch if overflow set
-    CLC, // clear carry flag
-    CLD, // clear decimal node
-    CLI, // clear interrupt disable
-    CLV, // clear overflow flag
+    BMI = 0x30, // branch if minus
+    BNE = 0xd0, // branch if not equal
+    BPL = 0x10, // branch if positive
+    BRK = 0x00, // force interrupt
+    BVC = 0x50, // branch if overflow clear
+    BVS = 0x70, // branch if overflow set
+    CLC = 0x18, // clear carry flag
+    CLD = 0xd8, // clear decimal node
+    CLI = 0x58, // clear interrupt disable
+    CLV = 0xb8, // clear overflow flag
     CMP, // compare
     CPX, // compare x register
     CPY, // cmpare y register
     DEC, // decrement memory
-    DEX, // decrement x register
-    DEY, // decrement y register
+    DEX = 0xca, // decrement x register
+    DEY = 0x88, // decrement y register
     EOR, // exclusive or
     INC, // increment memory
-    INX, // increment x register
-    INY, // increment y register
-    JMP, // jump
-    JSR, // jump to subroutine
+    INX = 0xe8, // increment x register
+    INY = 0xc8, // increment y register
+    JMP = 0x4c, // jump
+    JSR = 0x20, // jump to subroutine
     LDA, // load accumulator
     LDX, // load x register
     LDY, // load y register
     LSR, // logical shift right
-    NOP, // no-op
+    NOP = 0xEA, // no-op
     ORA, // logical inclusive or
-    PHA, // push accumulator
-    PHP, // push processor status
-    PLA, // pull accumulator
-    PLP, // pull processor status
+    PHA = 0x48, // push accumulator
+    PHP = 0x08, // push processor status
+    PLA = 0x68, // pull accumulator
+    PLP = 0x28, // pull processor status
     ROL, // rotate left
     ROR, // rotate right
-    RTI, // return from interrupt
-    RTS, // return from subroutine
+    RTI = 0x40, // return from interrupt
+    RTS = 0x60, // return from subroutine
     SBC, // subtract with carry
-    SEC, // set carry flag
-    SED, // set decimal flag
-    SEI, // set interrupt disable
+    SEC = 0x38, // set carry flag
+    SED = 0xf8, // set decimal flag
+    SEI = 0x78, // set interrupt disable
     STA, // store accumulator
     STX, // store x register
     STY, // store y register
-    TAX, // transfer accumulator to x
-    TAY, // transfer accumulator to y
-    TSX, // transfer stack pointer to x
-    TXA, // transfer x to accumulator
-    TXS, // transfer x to stack pointer
-    TYA, // transfer y to accumulator
+    TAX = 0xaa, // transfer accumulator to x
+    TAY = 0xa8, // transfer accumulator to y
+    TSX = 0xba, // transfer stack pointer to x
+    TXA = 0x8a, // transfer x to accumulator
+    TXS = 0x9a, // transfer x to stack pointer
+    TYA = 0x98, // transfer y to accumulator
 }
 
 impl Six502 {
@@ -213,6 +216,8 @@ impl Six502 {
     }
 }
 
+
+// load/store ops
 impl Six502 {
     fn lda(&mut self, mode: AddressingMode) {
         let addr = self.op_addr(mode);
@@ -225,6 +230,56 @@ impl Six502 {
         let addr = self.op_addr(mode);
         self.write_u8(addr, self.a);
     }
+}
+
+// register transfers
+impl Six502 {
+
+}
+
+// stack ops
+impl Six502{
+
+}
+
+// logical ops
+impl Six502{
+
+}
+
+// arithmetic ops
+impl Six502{
+
+}
+
+//incrs and decrs
+impl Six502{
+
+}
+
+// shifts
+impl Six502{
+
+}
+
+// jumps and calls
+impl Six502{
+
+}
+
+// branches
+impl Six502{
+
+}
+
+// status flag changes 
+impl Six502{
+
+}
+
+// system functions
+impl Six502{
+
 }
 
 #[cfg(test)]
