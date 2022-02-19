@@ -26,6 +26,67 @@ pub enum AddressingMode {
     IndirectINdexed,
 }
 
+
+// Source: https://web.archive.org/web/20210428044647/http://www.obelisk.me.uk/6502/reference.html
+pub enum OpCode {
+    ADC, // add with carry
+    AND, // logical and
+    ASL, // Arithmetic shift left
+    BCC, // bramch if carry c;ear
+    BCS, // branch if carry set
+    BEQ, // branch if equla
+    BIT, // bit test
+    BMI, // branch if minus
+    BNE, // branch if not equal
+    BPL, // branch if positive
+    BRK, // force interrupt
+    BVC, // branch if overflow clear
+    BVS, // branch if overflow set
+    CLC, // clear carry flag
+    CLD, // clear decimal node
+    CLI, // clear interrupt disable
+    CLV, // clear overflow flag
+    CMP, // compare
+    CPX, // compare x register
+    CPY, // cmpare y register
+    DEC, // decrement memory
+    DEX, // decrement x register
+    DEY, // decrement y register
+    EOR, // exclusive or
+    INC, // increment memory
+    INX, // increment x register
+    INY, // increment y register
+    JMP, // jump
+    JSR, // jump to subroutine
+    LDA, // load accumulator
+    LDX, // load x register
+    LDY, // load y register
+    LSR, // logical shift right
+    NOP, // no-op
+    ORA, // logical inclusive or
+    PHA, // push accumulator
+    PHP, // push processor status
+    PLA, // pull accumulator
+    PLP, // pull processor status
+    ROL, // rotate left
+    ROR, // rotate right
+    RTI, // return from interrupt
+    RTS, // return from subroutine
+    SBC, // subtract with carry
+    SEC, // set carry flag
+    SED, // set decimal flag
+    SEI, // set interrupt disable
+    STA, // store accumulator
+    STX, // store x register
+    STY, // store y register
+    TAX, // transfer accumulator to x
+    TAY, // transfer accumulator to y
+    TSX, // transfer stack pointer to x
+    TXA, // transfer x to accumulator
+    TXS, // transfer x to stack pointer
+    TYA, // transfer y to accumulator
+}
+
 impl Six502 {
     pub(crate) fn new() -> Self {
         Self {
