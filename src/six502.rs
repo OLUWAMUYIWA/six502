@@ -1,15 +1,29 @@
 #![allow(dead_code, unused_variables, unused_imports)]
 
-use std::ops::{AddAssign, Index, RangeBounds};
+use std::{
+    ops::{AddAssign, Index, RangeBounds},
+    simd::u32x16,
+};
 
 //comeback: where is jmpi
 
+mod flags {
+    const CARRY: U8 = 1 << 0;
+    const ZERO: u8 = 1 << 1; //set to 1 on equality
+    const IRQ: u8 = 1 << 2;
+    const DECIMAL: u8 = 1 << 3;
+
+    const BREAK: u8 = 1 << 4;
+    const OVERFLOW: u8 = 1 << 6;
+    const NEGATIVE: u8 = 1 << 7;
+}
 
 pub struct Six502 {
     a: u8,
     x: u8,
     y: u8,
     pc: u16,
+    s: u8,
     flags: u8,
     mem: [u8; 0xFF],
 }
@@ -17,28 +31,74 @@ pub struct Six502 {
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
 pub enum AddressingMode {
+    Immediate,
+    Accumulator,
     Absolute,
-    ZeroPage,
+    ZeroPage, //This type of addressing is called “zero page” - only the first page (the first 256 bytes) of memory is accessible
     ZeroPage_X,
     ZeroPage_Y,
-    Immediate,
-    Relative,
-    Implicit,
-    Indirect,
+    Absolute_X,
+    Absolute_Y,
     IndexedIndirect,
-    IndirectINdexed,
+    IndirectIndexed,
 }
 
+impl AddressingMode {
+    fn load(&self, cpu: &mut Six502) -> u8 {
+        match self {
+            AddressingMode::Immediate => cpu.load_u8_bump_pc(),
+            AddressingMode::Accumulator => cpu.a,
+            AddressingMode::Absolute => cpu.load_u8(cpu.load_u16_bump_pc()),
+            AddressingMode::Absolute_X => cpu.load_u8(cpu.load_u16_bump_pc() + (cpu.x as u16)),
+            AddressingMode::Absolute_Y => cpu.load_u8(cpu.load_u16_bump_pc() + (cpu.y as u16)),
+            AddressingMode::ZeroPage => cpu.load_u8(cpu.load_u8_bump_pc()),
+            AddressingMode::ZeroPage_X => cpu.load_u8((cpu.load_u8_bump_pc() + cpu.x) as u16),
+            AddressingMode::ZeroPage_Y => cpu.load_u8((cpu.load_u8_bump_pc() + cpu.y) as u16),
+            AddressingMode::IndexedIndirect => {
+                let v = cpu.load_u8_bump_pc();
+                let x = self.x;
+                cpu.load_u8(cpu.load_u16(v + x as u16))
+            }
+            AddressingMode::IndirectIndexed => {
+                let v = cpu.load_u8_bump_pc();
+                let y = self.y;
+                cpu.load_u8(cpu.load_u16(v + y as u16))
+            }
+        }
+    }
+    fn store(&self, cpu: &mut Six502, v: u8) {
+        match self {
+            AddressingMode::Immediate => {} // do nothing
+            AddressingMode::Accumulator => cpu.a = v,
+            AddressingMode::Absolute => cpu.store_u8(cpu.load_u16_bump_pc(), v),
+            AddressingMode::Absolute_X => cpu.store_u8(cpu.load_u16_bump_pc() + (cpu.x as u16), v),
+            AddressingMode::Absolute_Y => cpu.store_u8(cpu.load_u16_bump_pc() + (cpu.y as u16), v),
+            AddressingMode::ZeroPage => cpu.store_u8(cpu.load_u8_bump_pc(), v),
+            AddressingMode::ZeroPage_X => cpu.store_u8((cpu.load_u8_bump_pc() + cpu.x) as u16, v),
+            AddressingMode::ZeroPage_Y => cpu.store_u8((cpu.load_u8_bump_pc() + cpu.y) as u16, v),
+            AddressingMode::IndexedIndirect => {
+                let val = cpu.load_u8_bump_pc();
+                let x = self.x;
+                cpu.store_u8(cpu.load_u16(val + x as u16), v)
+            }
+            AddressingMode::IndirectIndexed => {
+                let val = cpu.load_u8_bump_pc();
+                let y = self.y;
+                cpu.store_u8(cpu.load_u16(val + y as u16), v)
+            }
+        }
+    }
+}
 
 // Source: https://web.archive.org/web/20210428044647/http://www.obelisk.me.uk/6502/reference.html
 pub enum OpCode {
-    ADC, // add with carry
-    AND, // logical and
-    ASL, // Arithmetic shift left
+    ADC,        // add with carry
+    AND,        // logical and
+    ASL,        // Arithmetic shift left
     BCC = 0x90, // bramch if carry c;ear
     BCS = 0xb0, // branch if carry set
     BEQ = 0xf0, // branch if equla
-    BIT, // bit test
+    BIT,        // bit test
     BMI = 0x30, // branch if minus
     BNE = 0xd0, // branch if not equal
     BPL = 0x10, // branch if positive
@@ -49,39 +109,39 @@ pub enum OpCode {
     CLD = 0xd8, // clear decimal node
     CLI = 0x58, // clear interrupt disable
     CLV = 0xb8, // clear overflow flag
-    CMP, // compare
-    CPX, // compare x register
-    CPY, // cmpare y register
-    DEC, // decrement memory
+    CMP,        // compare
+    CPX,        // compare x register
+    CPY,        // cmpare y register
+    DEC,        // decrement memory
     DEX = 0xca, // decrement x register
     DEY = 0x88, // decrement y register
-    EOR, // exclusive or
-    INC, // increment memory
+    EOR,        // exclusive or
+    INC,        // increment memory
     INX = 0xe8, // increment x register
     INY = 0xc8, // increment y register
     JMP = 0x4c, // jump
     JSR = 0x20, // jump to subroutine
-    LDA, // load accumulator
-    LDX, // load x register
-    LDY, // load y register
-    LSR, // logical shift right
+    LDA,        // load accumulator
+    LDX,        // load x register
+    LDY,        // load y register
+    LSR,        // logical shift right
     NOP = 0xEA, // no-op
-    ORA, // logical inclusive or
+    ORA,        // logical inclusive or
     PHA = 0x48, // push accumulator
     PHP = 0x08, // push processor status
     PLA = 0x68, // pull accumulator
     PLP = 0x28, // pull processor status
-    ROL, // rotate left
-    ROR, // rotate right
+    ROL,        // rotate left
+    ROR,        // rotate right
     RTI = 0x40, // return from interrupt
     RTS = 0x60, // return from subroutine
-    SBC, // subtract with carry
+    SBC,        // subtract with carry
     SEC = 0x38, // set carry flag
     SED = 0xf8, // set decimal flag
     SEI = 0x78, // set interrupt disable
-    STA, // store accumulator
-    STX, // store x register
-    STY, // store y register
+    STA,        // store accumulator
+    STX,        // store x register
+    STY,        // store y register
     TAX = 0xaa, // transfer accumulator to x
     TAY = 0xa8, // transfer accumulator to y
     TSX = 0xba, // transfer stack pointer to x
@@ -96,17 +156,18 @@ impl Six502 {
             a: 0,
             x: 0,
             y: 0,
-            pc: 0,
-            flags: 0,
+            pc: 0xc000,
+            s: 0xfd,
+            flags: 0x24,
             mem: [0u8; 0xFF],
         }
     }
 
-    fn read_u8(&self, addr: u16) -> u8 {
+    fn load_u8(&self, addr: u16) -> u8 {
         self.mem[addr as usize]
     }
 
-    fn read_u16(&self, addr: u16) -> u16 {
+    fn load_u16(&self, addr: u16) -> u16 {
         u16::from_be_bytes(
             self.mem[(addr as usize)..=(addr + 1) as usize]
                 .try_into()
@@ -114,16 +175,28 @@ impl Six502 {
         )
     }
 
-    fn write_u16(&mut self, addr: u16, v: u16) {
-        self.write_u8(addr, (v >> 8) as u8);
-        self.write_u8(addr + 1, (v & 0x00FF) as u8);
+    fn load_u8_bump_pc(&mut self) -> u8 {
+        let addr = self.pc;
+        self.pc += 1;
+        self.load_u8(addr)
+    }
+
+    fn load_u16_bump_pc(&mut self) -> u16 {
+        let addr = self.pc;
+        self.pc += 2;
+        self.load_u16(addr)
+    }
+
+    fn store_u16(&mut self, addr: u16, v: u16) {
+        self.store_u8(addr, (v >> 8) as u8);
+        self.store_u8(addr + 1, (v & 0x00FF) as u8);
+    }
+
+    fn store_u8(&mut self, addr: u16, v: u8) {
+        self.mem[addr as usize] = v;
     }
 
     pub fn run(&mut self) {}
-
-    fn write_u8(&mut self, addr: u16, v: u8) {
-        self.mem[addr as usize] = v;
-    }
 
     fn load(&mut self, prog: &[u8]) {
         //comeback
@@ -133,7 +206,7 @@ impl Six502 {
         self.mem[0x8000..(0x8000 + prog.len())].copy_from_slice(prog);
 
         //save the reference to the code into 0xFFFC
-        self.write_u16(0xFFFC, 0x8000);
+        self.store_u16(0xFFFC, 0x8000);
 
         self.pc = 0x8000;
     }
@@ -152,21 +225,6 @@ impl Six502 {
         } else {
             self.flags.add_assign(0b0111_1111);
         };
-    }
-
-    fn op_addr(&self, mode: AddressingMode) -> u16 {
-        match mode {
-            AddressingMode::Absolute => self.read_u16(self.pc),
-            AddressingMode::ZeroPage => self.read_u8(self.pc) as u16,
-            AddressingMode::ZeroPage_X => self.read_u8(self.pc).saturating_add(self.x) as u16,
-            AddressingMode::ZeroPage_Y => self.read_u8(self.pc).saturating_add(self.y) as u16,
-            AddressingMode::Immediate => self.pc,
-            AddressingMode::Relative => todo!(),
-            AddressingMode::Implicit => todo!(),
-            AddressingMode::Indirect => todo!(),
-            AddressingMode::IndexedIndirect => todo!(),
-            AddressingMode::IndirectINdexed => todo!(),
-        }
     }
 
     fn interpret(&mut self, prog: Vec<u8>) {
@@ -216,71 +274,113 @@ impl Six502 {
     }
 }
 
+//flags
+impl Six502 {
+    fn flag_on(&mut self, flag: u8) {
+        self.flags |= flag;
+    }
+
+    fn flag_off(&mut self, flag: u8) {
+        self.flags &= !flag
+    }
+}
 
 // load/store ops
 impl Six502 {
     fn lda(&mut self, mode: AddressingMode) {
-        let addr = self.op_addr(mode);
-        let v = self.read_u8(addr);
+        let v = mode.load(self);
         self.a = v;
-        self.update_flags_lda(v);
+        if v == 0 {
+            self.flag_on(flags::ZERO);
+        }
+        if v & 0x80 != 0 {
+            self.flag_on(flags::NEGATIVE);
+        }
     }
 
-    fn sta(&mut self, mode: AddressingMode) {
-        let addr = self.op_addr(mode);
-        self.write_u8(addr, self.a);
+    fn ldx(&mut self, mode: AddressingMode) {
+        let v = mode.load(self);
+        self.x = v;
+        if v == 0 {
+            self.flag_on(flags::ZERO);
+        }
+        if v & 0x80 != 0 {
+            self.flag_on(flags::NEGATIVE);
+        }
     }
+
+    fn ldy(&mut self, mode: AddressingMode) {
+        let v = mode.load(self);
+        self.y = v;
+        if v == 0 {
+            self.flag_on(flags::ZERO);
+        }
+        if v & 0x80 != 0 {
+            self.flag_on(flags::NEGATIVE);
+        }
+    }
+
+    fn sta(&mut self, mode: AddressingMode) {}
 }
 
-// register transfers
+//comeback
+// stack impls
 impl Six502 {
+    fn push_u8(&mut self, b: u8) {
+        let addr = (0x100 + self.s) as u16;
+        self.store_u8(addr, b);
+        self.s -= 1;
+    }
 
+    fn pull_u8(&mut self) -> u8 {
+        let addr = (0x100 + self.s) as u16 + 1;
+        let v = self.load_u8(addr);
+        self.s += 1;
+        v
+    }
+
+    fn push_u16(&mut self, w: u16) {
+        let addr = (0x100 + (self.s - 1)) as u16;
+        self.store_u16(addr, w);
+        self.s -= 2;
+    }
+
+    fn pull_u16(&mut self) -> u16 {
+        let addr = (0x100 + self.s) as u16 + 1;
+        let v = self.load_u16(addr);
+        self.s += 2;
+        v
+    }
 }
+// register transfers
+impl Six502 {}
 
 // stack ops
-impl Six502{
-
-}
+impl Six502 {}
 
 // logical ops
-impl Six502{
-
-}
+impl Six502 {}
 
 // arithmetic ops
-impl Six502{
-
-}
+impl Six502 {}
 
 //incrs and decrs
-impl Six502{
-
-}
+impl Six502 {}
 
 // shifts
-impl Six502{
-
-}
+impl Six502 {}
 
 // jumps and calls
-impl Six502{
-
-}
+impl Six502 {}
 
 // branches
-impl Six502{
+impl Six502 {}
 
-}
-
-// status flag changes 
-impl Six502{
-
-}
+// status flag changes
+impl Six502 {}
 
 // system functions
-impl Six502{
-
-}
+impl Six502 {}
 
 #[cfg(test)]
 mod tests {
