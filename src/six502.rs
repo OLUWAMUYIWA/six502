@@ -283,6 +283,10 @@ impl Six502 {
     fn flag_off(&mut self, flag: u8) {
         self.flags &= !flag
     }
+
+    fn is_flag_set(&mut self, flag: u8) -> bool {
+        self.flags & flag != 0
+    }
 }
 
 // load/store ops
@@ -320,7 +324,17 @@ impl Six502 {
         }
     }
 
-    fn sta(&mut self, mode: AddressingMode) {}
+    fn sta(&mut self, mode: AddressingMode) {
+        mode.store(self, self.a)
+    }
+
+    fn stx(&mut self, mode: AddressingMode) {
+        mode.store(self, self.x)
+    }
+
+    fn sty(&mut self, mode: AddressingMode) {
+        mode.store(self, self.y)
+    }
 }
 
 //comeback
@@ -352,6 +366,153 @@ impl Six502 {
         v
     }
 }
+
+fn check_overflow(a: u8, b: u8, res: u8) -> bool {
+    ((a ^ res) & 0x80 != 0) && ((a ^ b) & 0x80 == 0x80)
+}
+
+impl Six502 {
+    fn adc(&mut self, mode: AddressingMode) {
+        let b = mode.load(self) as u16;
+        let a = self.a as u16;
+
+        let res = if self.is_flag_set(flags::CARRY) {
+            // CARRY flag may conatain a `1` from a previous computation that added a set of lower significant
+            // bits. this carry may then be pushed over to the next (immediately higher) group of bits as a unit of 1
+            // because in this higher batch of operands, it is a unit value.
+            a + b + 1
+        } else {
+            a + b
+        };
+
+        if res & 0x100 != 0 {
+            self.flag_on(flags::CARRY);
+        }
+
+        if check_overflow(a, b, res as u8) {
+            self.flag_on(flags::OVERFLOW);
+        }
+
+        if res == 0 {
+            self.flag_on(flags::ZERO);
+        }
+
+        if res as u8 & 0x80 != 0 {
+            self.flag_on(flags::NEGATIVE);
+        }
+    }
+
+    fn sbc(&mut self, mode: AddressingMode) {
+        let a = self.a as u16;
+        let b = mode.load(self) as u16;
+        let res = if self.is_flag_set(flags::CARRY) {
+            a - (b + 1)
+        } else {
+            a - b
+        };
+
+        if res & 0x100 == 0 {
+            self.flag_on(flags::CARRY);
+        }
+
+        if check_overflow(a, b, res as u8) {
+            self.flag_on(flags::OVERFLOW);
+        }
+
+        if res == 0 {
+            self.flag_on(flags::ZERO);
+        }
+
+        if res as u8 & 0x80 != 0 {
+            self.flag_on(flags::NEGATIVE);
+        }
+    }
+
+    fn cmp(&mut self, mode: AddressingMode) {
+        let b = mode.load(self) as u16;
+        let a = self.a as u16;
+        let res = a - b;
+        if res & 0x100 == 0 {
+            self.flag_on(flags::CARRY);
+        }
+        if res == 0 {
+            self.flag_on(flags::ZERO);
+        }
+
+        if res as u8 & 0x80 != 0 {
+            self.flag_on(flags::NEGATIVE);
+        }
+    }
+
+    fn cpx(&mut self, mode: AddressingMode) {
+        let b = mode.load(self) as u16;
+        let a = self.x as u16;
+        let res = a - b;
+        if res & 0x100 == 0 {
+            self.flag_on(flags::CARRY);
+        }
+        if res == 0 {
+            self.flag_on(flags::ZERO);
+        }
+
+        if res as u8 & 0x80 != 0 {
+            self.flag_on(flags::NEGATIVE);
+        }
+    }
+
+    fn cpy(&mut self, mode: AddressingMode) {
+        let b = mode.load(self) as u16;
+        let a = self.y as u16;
+        let res = a - b;
+        if res & 0x100 == 0 {
+            self.flag_on(flags::CARRY);
+        }
+        if res == 0 {
+            self.flag_on(flags::ZERO);
+        }
+
+        if res as u8 & 0x80 != 0 {
+            self.flag_on(flags::NEGATIVE);
+        }
+    }
+
+    fn and(&mut self, mode: AddressingMode) {
+        let b = mode.load(self);
+        self.a = self.a &= b;
+        if self.a == 0 {
+            self.flag_on(flags::ZERO);
+        }
+
+        if self.a & 0x80 != 0 {
+            self.flag_on(flags::NEGATIVE);
+        }
+    }
+
+    fn ora(&mut self, mode: AddressingMode) {
+        let b = mode.load(self);
+        self.a = self.a |= b;
+        if self.a == 0 {
+            self.flag_on(flags::ZERO);
+        }
+
+        if self.a & 0x80 != 0 {
+            self.flag_on(flags::NEGATIVE);
+        }
+    }
+
+    fn eor(&mut self, mode: AddressingMode) {
+        let b = mode.load(self);
+        self.a = self.a ^= b;
+        if self.a == 0 {
+            self.flag_on(flags::ZERO);
+        }
+
+        if self.a & 0x80 != 0 {
+            self.flag_on(flags::NEGATIVE);
+        }
+    }
+}
+
 // register transfers
 impl Six502 {}
 
