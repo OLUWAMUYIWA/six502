@@ -7,6 +7,7 @@ pub struct Rom {
 impl Rom {
     pub fn load<R: Read>(rdr: R) -> Result<(), io::Error> {
         let mut n = 0;
+        Ok(())
     }
 }
 
