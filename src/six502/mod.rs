@@ -20,18 +20,20 @@ bitflags::bitflags! {
         const NEGATIVE= 0b10000000;
     }
 }
-mod flags {
-    const CARRY: U8 = 1 << 0;
-    const ZERO: u8 = 1 << 1; //set to 1 on equality
-    const IRQ: u8 = 1 << 2;
-    const DECIMAL: u8 = 1 << 3;
-    const BREAK: u8 = 1 << 4;
+pub(super) mod flags {
+    pub const CARRY: u8 = 1 << 0;
+    pub const ZERO: u8 = 1 << 1; //set to 1 on equality
+    pub const IRQ: u8 = 1 << 2;
+    pub const DECIMAL: u8 = 1 << 3;
+    pub const BREAK: u8 = 1 << 4;
     //unused bit pos
-    const OVERFLOW: u8 = 1 << 6;
-    const NEGATIVE: u8 = 1 << 7;
+    pub const OVERFLOW: u8 = 1 << 6;
+    pub const NEGATIVE: u8 = 1 << 7;
 }
 
 //comeback: where is jmpi
+
+use self::memory::Ram;
 
 pub struct Six502 {
     a: u8,
@@ -55,13 +57,47 @@ impl Six502 {
             ram: Ram::new(),
         }
     }
-    pub fn step(&mut self) -> Result<(), Box<dyn error::Error>> {
+    pub fn step(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         Ok(())
+    }
+    fn load_u16(&self, addr: u16) -> u16 {
+        u16::from_be_bytes(
+            self.ram[(addr as usize)..=(addr + 1) as usize]
+                .try_into()
+                .expect("It is certainly 2"),
+        )
+    }
+
+    pub(super) fn load_u8_bump_pc(&mut self) -> u8 {
+        let addr = self.pc;
+        self.pc += 1;
+        self.load_u8(addr)
+    }
+
+    pub(super) fn load_u16_bump_pc(&mut self) -> u16 {
+        let addr = self.pc;
+        self.pc += 2;
+        self.load_u16(addr)
+    }
+
+    pub(super) fn store_u16(&mut self, addr: u16, v: u16) {
+        self.store_u8(addr, (v >> 8) as u8);
+        self.store_u8(addr + 1, (v & 0x00FF) as u8);
+    }
+
+    pub(super) fn update_zero_neg_flags(&mut self, v: u8) {
+        if v == 0 {
+            self.flag_on(flags::ZERO);
+        }
+
+        if v & 0x80 != 0 {
+            self.flag_on(flags::NEGATIVE);
+        }
     }
 }
 
 lazy_static::lazy_static! {
-    static ref CYCLES: [U8; 256] = [
+    static ref CYCLES: [u8; 256] = [
         //       0, 1, 2, 3, 4, 5, 6, 7, 8, 9, A, B, C, D, E, F
         /*0x00*/ 7, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2, 2, 4, 4, 6, 6,
         /*0x10*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
@@ -81,3 +117,5 @@ lazy_static::lazy_static! {
         /*0xF0*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
     ];
 }
+
+impl Six502 {}

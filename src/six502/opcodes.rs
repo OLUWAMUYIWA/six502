@@ -1,5 +1,6 @@
-use super::{addressing::AddressingMode, flags};
-
+use super::{addressing::AddressingMode, flags, Six502};
+use super::{IRQ_VECTOR, NMI_VECTOR, RESET_VECTOR, STACK_OFFSET};
+use std::ops::{Shl, Shr};
 // Source: https://web.archive.org/web/20210428044647/http://www.obelisk.me.uk/6502/reference.html
 pub enum OpCode {
     ADC,        // add with carry
@@ -217,7 +218,7 @@ impl Six502 {
 
     fn php(&mut self) {
         let flags = self.flags;
-        self.push_u8(flags | flags::BREAK_FLAG);
+        self.push_u8(flags | flags::BREAK);
     }
 
     fn plp(&mut self) {
@@ -250,8 +251,8 @@ impl Six502 {
 // arithmetic ops
 impl Six502 {
     fn adc(&mut self, mode: AddressingMode) {
-        let b = mode.load(self) as u16;
         let a = self.a as u16;
+        let b = mode.load(self) as u16;
 
         let res = if self.is_flag_set(flags::CARRY) {
             // CARRY flag may conatain a `1` from a previous computation that added a set of lower significant
@@ -266,7 +267,7 @@ impl Six502 {
             self.flag_on(flags::CARRY);
         }
 
-        if check_overflow(a, b, res as u8) {
+        if check_overflow(a as u8, b as u8, res as u8) {
             self.flag_on(flags::OVERFLOW);
         }
         self.a = res as u8;
@@ -286,7 +287,7 @@ impl Six502 {
             self.flag_on(flags::CARRY);
         }
 
-        if check_overflow(a, b, res as u8) {
+        if check_overflow(a as u8, b as u8, res as u8) {
             self.flag_on(flags::OVERFLOW);
         }
 
@@ -312,29 +313,29 @@ impl Six502 {
     }
 
     fn inx(&mut self, mode: AddressingMode) {
-        let v = self.x.wrapping_add(1);
-        self.update_zero_neg_flags(v);
+        let x = self.x.wrapping_add(1);
+        self.update_zero_neg_flags(x);
 
         self.x = x;
     }
 
     fn dex(&mut self, mode: AddressingMode) {
-        let v = self.x.wrapping_sub(1);
-        self.update_zero_neg_flags(v);
+        let x = self.x.wrapping_sub(1);
+        self.update_zero_neg_flags(x);
 
         self.x = x;
     }
 
     fn iny(&mut self, mode: AddressingMode) {
-        let v = self.y.wrapping_add(1);
-        self.update_zero_neg_flags(v);
+        let y = self.y.wrapping_add(1);
+        self.update_zero_neg_flags(y);
 
         self.y = y;
     }
 
     fn dey(&mut self, mode: AddressingMode) {
-        let v = self.y.wrapping_sub(1);
-        self.update_zero_neg_flags(v);
+        let y = self.y.wrapping_sub(1);
+        self.update_zero_neg_flags(y);
 
         self.y = y;
     }
@@ -417,7 +418,7 @@ impl Six502 {
         let pc = self.pc;
         let addr = self.load_u16_bump_pc();
         self.push_u16(pc - 1); // push curr pc-1 to the stack
-        seelf.pc = addr;
+        self.pc = addr;
     }
 
     fn rts(&mut self) {
@@ -430,7 +431,7 @@ impl Six502 {
         self.push_u16(pc + 1);
         self.push_u8(self.flags);
         self.flag_on(flags::IRQ);
-        self.pc = self.load_u16(BRK_VECTOR);
+        self.pc = self.load_u16(flags::BREAK);
     }
 
     fn rti(&mut self) {
@@ -488,14 +489,14 @@ impl Six502 {
     fn bne(&mut self) {
         let v = self.load_u8_bump_pc();
 
-        if !self.is_flag_set(ZERO) {
+        if !self.is_flag_set(flags::ZERO) {
             self.pc = self.pc.wrapping_add(v as u16);
         }
     }
     fn beq(&mut self) {
         let v = self.load_u8_bump_pc();
 
-        if self.is_flag_set(ZERO) {
+        if self.is_flag_set(flags::ZERO) {
             self.pc = self.pc.wrapping_add(v as u16);
         }
     }
@@ -504,15 +505,15 @@ impl Six502 {
 // status flag changes
 impl Six502 {
     // helpers
-    fn flag_on(&mut self, flag: u8) {
+    pub(super) fn flag_on(&mut self, flag: u8) {
         self.flags |= flag;
     }
 
-    fn flag_off(&mut self, flag: u8) {
+    pub(super) fn flag_off(&mut self, flag: u8) {
         self.flags &= !flag
     }
 
-    fn is_flag_set(&mut self, flag: u8) -> bool {
+    pub(super) fn is_flag_set(&mut self, flag: u8) -> bool {
         self.flags & flag != 0
     }
 

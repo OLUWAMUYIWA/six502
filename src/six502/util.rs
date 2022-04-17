@@ -1,4 +1,6 @@
 use super::addressing;
+use super::Six502;
+use std::ops::AddAssign;
 
 impl Six502 {
     //sets the zero and negative flags as is appropriate

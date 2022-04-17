@@ -14,33 +14,32 @@ impl Deref for Ram {
 }
 
 impl DerefMut for Ram {
-    type Target = [u8; 0x800];
-
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.array
     }
 }
 
 impl Ram {
-    pub(crate) fn new() -> Self {
+    pub(super) fn new() -> Self {
         Self {
             array: [0u8; 0x800],
         }
     }
 
-    pub(crate) fn load_u8(&self, addr: u16) -> u8 {
+    pub(super) fn load_u8(&self, addr: u16) -> u8 {
         *self.index((addr & 0x7ff) as usize)
     }
 
-    pub(crate) fn load_u16(&self, addr: u16) -> u16 {
-        self.load_byte(addr & 0x7ff) as u16 | ((self.load_byte((addr + 1) & 0x7ff) as u16) << 8)
+    // 6502 arranges integers in little-endian order. lower bytes first
+    pub(super) fn load_u16(&self, addr: u16) -> u16 {
+        self.load_u8(addr & 0x7ff) as u16 | ((self.load_u8((addr + 1) & 0x7ff) as u16) << 8)
     }
 
-    pub(crate) fn store_u8(&mut self, addr: u16, val: u8) {
+    pub(super) fn store_u8(&mut self, addr: u16, val: u8) {
         self[(addr & 0x7ff) as usize] = val;
     }
 
-    pub(crate) fn store_u16(&mut self, addr: u16, val: u16) {
+    pub(super) fn store_u16(&mut self, addr: u16, val: u16) {
         self.store_u8(addr, val as u8); //comeback. does `as` truncate the MSB as expected?
         self.store_u8(addr + 1, (val >> 8) as u8);
     }
@@ -61,10 +60,10 @@ impl Six502 {
         }
     }
 
-    pub fn store_u8(&mut self, address: u16, val: u8) {
+    pub fn store_u8(&mut self, addr: u16, val: u8) {
         match addr {
             0x0000..=0x1fff => self.ram.store_u8(addr, val),
-            0x2000..=0x3fff => todo!(ppu),
+            0x2000..=0x3fff => todo!("ppu"),
             0x4016 => todo!("controller"),
             0x4000..=0x4017 => todo!("apu"),
             0x4020..=0xFFFF => todo!("mapper"),
