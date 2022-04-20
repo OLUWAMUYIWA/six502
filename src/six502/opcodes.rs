@@ -1,5 +1,5 @@
 use super::{addressing::AddressingMode, flags, Six502};
-use super::{IRQ_VECTOR, NMI_VECTOR, RESET_VECTOR, STACK_OFFSET};
+use super::{BRK_VECTOR, IRQ_VECTOR, NMI_VECTOR, RESET_VECTOR, STACK_OFFSET};
 use std::ops::{Shl, Shr};
 // Source: https://web.archive.org/web/20210428044647/http://www.obelisk.me.uk/6502/reference.html
 pub enum OpCode {
@@ -63,43 +63,45 @@ pub enum OpCode {
 
 // load/store ops
 impl Six502 {
-    fn lda(&mut self, mode: AddressingMode) {
+    pub(super) fn lda(&mut self, mode: AddressingMode) {
         let v = mode.load(self);
         self.a = v;
         self.update_zero_neg_flags(v);
     }
 
-    fn ldx(&mut self, mode: AddressingMode) {
+    pub(super) fn ldx(&mut self, mode: AddressingMode) {
         let v = mode.load(self);
         self.x = v;
         self.update_zero_neg_flags(v);
     }
 
-    fn ldy(&mut self, mode: AddressingMode) {
+    pub(super) fn ldy(&mut self, mode: AddressingMode) {
         let v = mode.load(self);
         self.y = v;
         self.update_zero_neg_flags(v);
     }
 
-    fn sta(&mut self, mode: AddressingMode) {
+    pub(super) fn sta(&mut self, mode: AddressingMode) {
         mode.store(self, self.a)
     }
 
-    fn stx(&mut self, mode: AddressingMode) {
+    pub(super) fn stx(&mut self, mode: AddressingMode) {
         mode.store(self, self.x)
     }
 
-    fn sty(&mut self, mode: AddressingMode) {
+    pub(super) fn sty(&mut self, mode: AddressingMode) {
         mode.store(self, self.y)
     }
 }
 
-fn check_overflow(a: u8, b: u8, res: u8) -> bool {
+pub(super) fn check_overflow(a: u8, b: u8, res: u8) -> bool {
     ((a ^ res) & 0x80 != 0) && ((a ^ b) & 0x80 == 0x80)
 }
 
+
+// comparisons
 impl Six502 {
-    fn cmp(&mut self, mode: AddressingMode) {
+    pub(super) fn cmp(&mut self, mode: AddressingMode) {
         let b = mode.load(self) as u16;
         let a = self.a as u16;
         let res = a - b;
@@ -109,7 +111,7 @@ impl Six502 {
         self.update_zero_neg_flags(res as u8);
     }
 
-    fn cpx(&mut self, mode: AddressingMode) {
+    pub(super) fn cpx(&mut self, mode: AddressingMode) {
         let b = mode.load(self) as u16;
         let a = self.x as u16;
         let res = a - b;
@@ -119,7 +121,7 @@ impl Six502 {
         self.update_zero_neg_flags(res as u8);
     }
 
-    fn cpy(&mut self, mode: AddressingMode) {
+    pub(super) fn cpy(&mut self, mode: AddressingMode) {
         let b = mode.load(self) as u16;
         let a = self.y as u16;
         let res = a - b;
@@ -129,7 +131,7 @@ impl Six502 {
         self.update_zero_neg_flags(res as u8);
     }
 
-    fn bit(&mut self, mode: AddressingMode) {
+    pub(super) fn bit(&mut self, mode: AddressingMode) {
         let a = self.a;
         let b = mode.load(self);
         if a & b == 0 {
@@ -146,32 +148,32 @@ impl Six502 {
 
 // register transfers
 impl Six502 {
-    fn tax(&mut self) {
+    pub(super) fn tax(&mut self) {
         self.x = self.a;
         self.update_zero_neg_flags(self.a);
     }
 
-    fn txa(&mut self) {
+    pub(super) fn txa(&mut self) {
         self.a = self.x;
         self.update_zero_neg_flags(self.x);
     }
 
-    fn tay(&mut self) {
+    pub(super) fn tay(&mut self) {
         self.y = self.a;
         self.update_zero_neg_flags(self.a);
     }
 
-    fn tya(&mut self) {
+    pub(super) fn tya(&mut self) {
         self.a = self.y;
         self.update_zero_neg_flags(self.y);
     }
 
-    fn tsx(&mut self) {
+    pub(super) fn tsx(&mut self) {
         self.x = self.s;
         self.update_zero_neg_flags(self.s);
     }
 
-    fn txs(&mut self) {
+    pub(super) fn txs(&mut self) {
         self.s = self.x;
         self.update_zero_neg_flags(self.x);
     }
@@ -180,48 +182,48 @@ impl Six502 {
 // stack ops
 impl Six502 {
     // helpers
-    fn push_u8(&mut self, b: u8) {
+    pub(super) fn push_u8(&mut self, b: u8) {
         let addr = (STACK_OFFSET + self.s) as u16;
         self.store_u8(addr, b);
         self.s -= 1;
     }
 
-    fn pull_u8(&mut self) -> u8 {
+    pub(super) fn pull_u8(&mut self) -> u8 {
         let addr = (STACK_OFFSET + self.s) as u16 + 1;
         let v = self.load_u8(addr);
         self.s += 1;
         v
     }
 
-    fn push_u16(&mut self, w: u16) {
+    pub(super) fn push_u16(&mut self, w: u16) {
         let addr = (STACK_OFFSET + (self.s - 1)) as u16;
         self.store_u16(addr, w);
         self.s -= 2;
     }
 
-    fn pull_u16(&mut self) -> u16 {
+    pub(super) fn pull_u16(&mut self) -> u16 {
         let addr = (STACK_OFFSET + self.s) as u16 + 1;
         let v = self.load_u16(addr);
         self.s += 2;
         v
     }
 
-    fn pha(&mut self) {
+    pub(super) fn pha(&mut self) {
         self.push_u8(self.a)
     }
 
-    fn pla(&mut self) {
+    pub(super) fn pla(&mut self) {
         let v = self.pull_u8();
         self.update_zero_neg_flags(v);
         self.a = v;
     }
 
-    fn php(&mut self) {
+    pub(super) fn php(&mut self) {
         let flags = self.flags;
         self.push_u8(flags | flags::BREAK);
     }
 
-    fn plp(&mut self) {
+    pub(super) fn plp(&mut self) {
         let val = self.pull_u8();
         self.flags = (val | 0x30) - 0x10;
     }
@@ -229,19 +231,19 @@ impl Six502 {
 
 // logical ops
 impl Six502 {
-    fn and(&mut self, mode: AddressingMode) {
+    pub(super) fn and(&mut self, mode: AddressingMode) {
         let b = mode.load(self);
         self.a = self.a &= b;
         self.update_zero_neg_flags(self.a);
     }
 
-    fn ora(&mut self, mode: AddressingMode) {
+    pub(super) fn ora(&mut self, mode: AddressingMode) {
         let b = mode.load(self);
         self.a = self.a |= b;
         self.update_zero_neg_flags(self.a);
     }
 
-    fn eor(&mut self, mode: AddressingMode) {
+    pub(super) fn eor(&mut self, mode: AddressingMode) {
         let b = mode.load(self);
         self.a = self.a ^= b;
         self.update_zero_neg_flags(self.a);
@@ -250,7 +252,7 @@ impl Six502 {
 
 // arithmetic ops
 impl Six502 {
-    fn adc(&mut self, mode: AddressingMode) {
+    pub(super) fn adc(&mut self, mode: AddressingMode) {
         let a = self.a as u16;
         let b = mode.load(self) as u16;
 
@@ -274,7 +276,7 @@ impl Six502 {
         self.update_zero_neg_flags(res as u8);
     }
 
-    fn sbc(&mut self, mode: AddressingMode) {
+    pub(super) fn sbc(&mut self, mode: AddressingMode) {
         let a = self.a as u16;
         let b = mode.load(self) as u16;
         let res = if self.is_flag_set(flags::CARRY) {
@@ -298,42 +300,42 @@ impl Six502 {
 
 //incrs and decrs
 impl Six502 {
-    fn inc(&mut self, mode: AddressingMode) {
+    pub(super) fn inc(&mut self, mode: AddressingMode) {
         let v = mode.load(self).wrapping_add(1);
         self.update_zero_neg_flags(v);
 
         mode.store(self, v);
     }
 
-    fn dec(&mut self, mode: AddressingMode) {
+    pub(super) fn dec(&mut self, mode: AddressingMode) {
         let v = mode.load(self).wrapping_sub(1);
         self.update_zero_neg_flags(v);
 
         mode.store(self, v);
     }
 
-    fn inx(&mut self, mode: AddressingMode) {
+    pub(super) fn inx(&mut self, mode: AddressingMode) {
         let x = self.x.wrapping_add(1);
         self.update_zero_neg_flags(x);
 
         self.x = x;
     }
 
-    fn dex(&mut self, mode: AddressingMode) {
+    pub(super) fn dex(&mut self, mode: AddressingMode) {
         let x = self.x.wrapping_sub(1);
         self.update_zero_neg_flags(x);
 
         self.x = x;
     }
 
-    fn iny(&mut self, mode: AddressingMode) {
+    pub(super) fn iny(&mut self, mode: AddressingMode) {
         let y = self.y.wrapping_add(1);
         self.update_zero_neg_flags(y);
 
         self.y = y;
     }
 
-    fn dey(&mut self, mode: AddressingMode) {
+    pub(super) fn dey(&mut self, mode: AddressingMode) {
         let y = self.y.wrapping_sub(1);
         self.update_zero_neg_flags(y);
 
@@ -343,7 +345,7 @@ impl Six502 {
 
 // shifts
 impl Six502 {
-    fn rol(&mut self, mode: AddressingMode) {
+    pub(super) fn rol(&mut self, mode: AddressingMode) {
         let b = mode.load(self);
         let mut res = b.shl(1);
         if self.is_flag_set(flags::CARRY) {
@@ -357,7 +359,7 @@ impl Six502 {
         mode.store(self, res);
     }
 
-    fn asl(&mut self, mode: AddressingMode) {
+    pub(super) fn asl(&mut self, mode: AddressingMode) {
         let b = mode.load(self);
         let mut res = b.shl(1);
         if b & 0x80 != 0 {
@@ -369,7 +371,7 @@ impl Six502 {
         mode.store(self, res);
     }
 
-    fn ror(&mut self, mode: AddressingMode) {
+    pub(super) fn ror(&mut self, mode: AddressingMode) {
         let b = mode.load(self);
         let mut res = b.shr(1);
         if self.is_flag_set(flags::CARRY) {
@@ -384,7 +386,7 @@ impl Six502 {
         mode.store(self, res);
     }
 
-    fn lsr(&mut self, mode: AddressingMode) {
+    pub(super) fn lsr(&mut self, mode: AddressingMode) {
         let b = mode.load(self);
         let mut res = b.shr(1);
         if (b & 0x1) != 0 {
@@ -401,11 +403,11 @@ impl Six502 {
 impl Six502 {
     const BRK_VECTOR: u16 = 0xfffe;
 
-    fn jmp(&mut self) {
+    pub(super) fn jmp(&mut self) {
         self.pc = self.load_u16_bump_pc();
     }
 
-    fn jmpi(&mut self) {
+    pub(super) fn jmpi(&mut self) {
         let addr = self.load_u16_bump_pc();
         let low_bit = self.load_u8(addr);
         let high_bit_addr = (addr & 0xff00) | ((addr + 1) & 0x00ff);
@@ -414,27 +416,27 @@ impl Six502 {
         self.pc = new_pc;
     }
 
-    fn jsr(&mut self) {
+    pub(super) fn jsr(&mut self) {
         let pc = self.pc;
         let addr = self.load_u16_bump_pc();
         self.push_u16(pc - 1); // push curr pc-1 to the stack
         self.pc = addr;
     }
 
-    fn rts(&mut self) {
+    pub(super) fn rts(&mut self) {
         let pos = self.pull_u16() + 1;
         self.pc = pos;
     }
 
-    fn brk(&mut self) {
+    pub(super) fn brk(&mut self) {
         let pc = self.pc;
         self.push_u16(pc + 1);
         self.push_u8(self.flags);
         self.flag_on(flags::IRQ);
-        self.pc = self.load_u16(flags::BREAK);
+        self.pc = self.load_u16(BRK_VECTOR);
     }
 
-    fn rti(&mut self) {
+    pub(super) fn rti(&mut self) {
         let flags = self.pull_u8();
         self.flags = (self.flags | 0x30) - 0x10;
         self.pc = self.pull_u16();
@@ -443,7 +445,7 @@ impl Six502 {
 
 // branches
 impl Six502 {
-    fn bpl(&mut self) {
+    pub(super) fn bpl(&mut self) {
         let v = self.load_u8_bump_pc();
 
         if !self.is_flag_set(flags::NEGATIVE) {
@@ -451,49 +453,49 @@ impl Six502 {
         }
     }
 
-    fn bmi(&mut self) {
+    pub(super) fn bmi(&mut self) {
         let v = self.load_u8_bump_pc();
         if self.is_flag_set(flags::NEGATIVE) {
             self.pc = self.pc.wrapping_add(v as u16);
         }
     }
 
-    fn bvc(&mut self) {
+    pub(super) fn bvc(&mut self) {
         let v = self.load_u8_bump_pc();
         if !self.is_flag_set(flags::OVERFLOW) {
             self.pc = self.pc.wrapping_add(v as u16);
         }
     }
 
-    fn bvs(&mut self) {
+    pub(super) fn bvs(&mut self) {
         let v = self.load_u8_bump_pc();
         if self.is_flag_set(flags::OVERFLOW) {
             self.pc = self.pc.wrapping_add(v as u16);
         }
     }
 
-    fn bcc(&mut self) {
+    pub(super) fn bcc(&mut self) {
         let v = self.load_u8_bump_pc();
         if !self.is_flag_set(flags::CARRY) {
             self.pc = self.pc.wrapping_add(v as u16);
         }
     }
 
-    fn bcs(&mut self) {
+    pub(super) fn bcs(&mut self) {
         let v = self.load_u8_bump_pc();
         if self.is_flag_set(flags::CARRY) {
             self.pc = self.pc.wrapping_add(v as u16);
         }
     }
 
-    fn bne(&mut self) {
+    pub(super) fn bne(&mut self) {
         let v = self.load_u8_bump_pc();
 
         if !self.is_flag_set(flags::ZERO) {
             self.pc = self.pc.wrapping_add(v as u16);
         }
     }
-    fn beq(&mut self) {
+    pub(super) fn beq(&mut self) {
         let v = self.load_u8_bump_pc();
 
         if self.is_flag_set(flags::ZERO) {
@@ -505,38 +507,38 @@ impl Six502 {
 // status flag changes
 impl Six502 {
     // helpers
-    pub(super) fn flag_on(&mut self, flag: u8) {
+    pub(super) pub(super) fn flag_on(&mut self, flag: u8) {
         self.flags |= flag;
     }
 
-    pub(super) fn flag_off(&mut self, flag: u8) {
+    pub(super) pub(super) fn flag_off(&mut self, flag: u8) {
         self.flags &= !flag
     }
 
-    pub(super) fn is_flag_set(&mut self, flag: u8) -> bool {
+    pub(super) pub(super) fn is_flag_set(&mut self, flag: u8) -> bool {
         self.flags & flag != 0
     }
 
     // cpu ops:
-    fn clc(&mut self) {
+    pub(super) fn clc(&mut self) {
         self.flag_off(flags::CARRY);
     }
-    fn sec(&mut self) {
+    pub(super) fn sec(&mut self) {
         self.flag_on(flags::CARRY);
     }
-    fn cli(&mut self) {
+    pub(super) fn cli(&mut self) {
         self.flag_off(flags::IRQ);
     }
-    fn sei(&mut self) {
+    pub(super) fn sei(&mut self) {
         self.flag_on(flags::IRQ);
     }
-    fn clv(&mut self) {
+    pub(super) fn clv(&mut self) {
         self.flag_off(flags::OVERFLOW);
     }
-    fn cld(&mut self) {
+    pub(super) fn cld(&mut self) {
         self.flag_off(flags::DECIMAL);
     }
-    fn sed(&mut self) {
+    pub(super) fn sed(&mut self) {
         self.flag_on(flags::DECIMAL);
     }
 }
