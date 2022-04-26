@@ -98,7 +98,6 @@ pub(super) fn check_overflow(a: u8, b: u8, res: u8) -> bool {
     ((a ^ res) & 0x80 != 0) && ((a ^ b) & 0x80 == 0x80)
 }
 
-
 // comparisons
 impl Six502 {
     pub(super) fn cmp(&mut self, mode: AddressingMode) {
@@ -219,13 +218,13 @@ impl Six502 {
     }
 
     pub(super) fn php(&mut self) {
-        let flags = self.flags;
+        let flags = self.p;
         self.push_u8(flags | flags::BREAK);
     }
 
     pub(super) fn plp(&mut self) {
         let val = self.pull_u8();
-        self.flags = (val | 0x30) - 0x10;
+        self.p = (val | 0x30) - 0x10;
     }
 }
 
@@ -314,28 +313,28 @@ impl Six502 {
         mode.store(self, v);
     }
 
-    pub(super) fn inx(&mut self, mode: AddressingMode) {
+    pub(super) fn inx(&mut self) {
         let x = self.x.wrapping_add(1);
         self.update_zero_neg_flags(x);
 
         self.x = x;
     }
 
-    pub(super) fn dex(&mut self, mode: AddressingMode) {
+    pub(super) fn dex(&mut self) {
         let x = self.x.wrapping_sub(1);
         self.update_zero_neg_flags(x);
 
         self.x = x;
     }
 
-    pub(super) fn iny(&mut self, mode: AddressingMode) {
+    pub(super) fn iny(&mut self) {
         let y = self.y.wrapping_add(1);
         self.update_zero_neg_flags(y);
 
         self.y = y;
     }
 
-    pub(super) fn dey(&mut self, mode: AddressingMode) {
+    pub(super) fn dey(&mut self) {
         let y = self.y.wrapping_sub(1);
         self.update_zero_neg_flags(y);
 
@@ -431,14 +430,14 @@ impl Six502 {
     pub(super) fn brk(&mut self) {
         let pc = self.pc;
         self.push_u16(pc + 1);
-        self.push_u8(self.flags);
+        self.push_u8(self.p);
         self.flag_on(flags::IRQ);
         self.pc = self.load_u16(BRK_VECTOR);
     }
 
     pub(super) fn rti(&mut self) {
         let flags = self.pull_u8();
-        self.flags = (self.flags | 0x30) - 0x10;
+        self.p = (self.p | 0x30) - 0x10;
         self.pc = self.pull_u16();
     }
 }
@@ -507,16 +506,16 @@ impl Six502 {
 // status flag changes
 impl Six502 {
     // helpers
-    pub(super) pub(super) fn flag_on(&mut self, flag: u8) {
-        self.flags |= flag;
+    pub(super) fn flag_on(&mut self, flag: u8) {
+        self.p |= flag;
     }
 
-    pub(super) pub(super) fn flag_off(&mut self, flag: u8) {
-        self.flags &= !flag
+    pub(super) fn flag_off(&mut self, flag: u8) {
+        self.p &= !flag
     }
 
-    pub(super) pub(super) fn is_flag_set(&mut self, flag: u8) -> bool {
-        self.flags & flag != 0
+    pub(super) fn is_flag_set(&mut self, flag: u8) -> bool {
+        self.p & flag != 0
     }
 
     // cpu ops:

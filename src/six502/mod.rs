@@ -1,5 +1,6 @@
 use addressing::AddressingMode::*;
 mod addressing;
+mod disasm;
 mod memory;
 mod opcodes;
 mod util;
@@ -33,8 +34,6 @@ pub(super) mod flags {
     pub const NEGATIVE: u8 = 1 << 7;
 }
 
-//comeback: where is jmpi
-
 use std::collections::HashMap;
 
 use self::{addressing::AddressingMode, memory::Ram};
@@ -45,7 +44,7 @@ pub struct Six502 {
     y: u8,
     pc: u16,
     s: u8,
-    flags: u8,
+    p: u8, // flags
     pub ram: Ram,
 }
 
@@ -57,19 +56,12 @@ impl Six502 {
             y: 0,
             pc: 0xc000,
             s: 0xfd,
-            flags: 0x24,
+            p: 0x24,
             ram: Ram::new(),
         }
     }
     pub fn step(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         Ok(())
-    }
-    fn load_u16(&self, addr: u16) -> u16 {
-        u16::from_be_bytes(
-            self.ram[(addr as usize)..=(addr + 1) as usize]
-                .try_into()
-                .expect("It is certainly 2"),
-        )
     }
 
     pub(super) fn load_u8_bump_pc(&mut self) -> u8 {
@@ -82,11 +74,6 @@ impl Six502 {
         let addr = self.pc;
         self.pc += 2;
         self.load_u16(addr)
-    }
-
-    pub(super) fn store_u16(&mut self, addr: u16, v: u16) {
-        self.store_u8(addr, (v >> 8) as u8);
-        self.store_u8(addr + 1, (v & 0x00FF) as u8);
     }
 
     pub(super) fn update_zero_neg_flags(&mut self, v: u8) {
@@ -103,22 +90,22 @@ impl Six502 {
 lazy_static::lazy_static! {
     static ref CYCLES: [u8; 256] = [
         //       0, 1, 2, 3, 4, 5, 6, 7, 8, 9, A, B, C, D, E, F
-        /*0x00*/ 7, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2, 2, 4, 4, 6, 6,
-        /*0x10*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
-        /*0x20*/ 6, 6, 2, 8, 3, 3, 5, 5, 4, 2, 2, 2, 4, 4, 6, 6,
-        /*0x30*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
-        /*0x40*/ 6, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2, 2, 3, 4, 6, 6,
-        /*0x50*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
-        /*0x60*/ 6, 6, 2, 8, 3, 3, 5, 5, 4, 2, 2, 2, 5, 4, 6, 6,
-        /*0x70*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
-        /*0x80*/ 2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4,
-        /*0x90*/ 2, 6, 2, 6, 4, 4, 4, 4, 2, 5, 2, 5, 5, 5, 5, 5,
-        /*0xA0*/ 2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4,
-        /*0xB0*/ 2, 5, 2, 5, 4, 4, 4, 4, 2, 4, 2, 4, 4, 4, 4, 4,
-        /*0xC0*/ 2, 6, 2, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6,
-        /*0xD0*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
-        /*0xE0*/ 2, 6, 3, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6,
-        /*0xF0*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+        /*0*/    7, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2, 2, 4, 4, 6, 6,
+        /*1*/    2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+        /*2*/    6, 6, 2, 8, 3, 3, 5, 5, 4, 2, 2, 2, 4, 4, 6, 6,
+        /*3*/    2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+        /*4*/    6, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2, 2, 3, 4, 6, 6,
+        /*5*/    2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+        /*6*/    6, 6, 2, 8, 3, 3, 5, 5, 4, 2, 2, 2, 5, 4, 6, 6,
+        /*7*/    2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+        /*8*/    2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4,
+        /*9*/    2, 6, 2, 6, 4, 4, 4, 4, 2, 5, 2, 5, 5, 5, 5, 5,
+        /*A*/    2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4,
+        /*B*/    2, 5, 2, 5, 4, 4, 4, 4, 2, 4, 2, 4, 4, 4, 4, 4,
+        /*C*/    2, 6, 2, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6,
+        /*D*/    2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+        /*E*/    2, 6, 3, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6,
+        /*F*/    2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
     ];
 }
 
@@ -128,10 +115,10 @@ impl Six502 {
         match op {
             // load/stores
             0xa1 => {
-                self.lda(XIndexedIndirect);
+                self.lda(XIdxd_Indirect);
             }
             0xa5 => {
-                self.lda(ZeroPage);
+                self.lda(ZP);
             }
             0xa9 => {
                 self.lda(Immediate);
@@ -140,123 +127,123 @@ impl Six502 {
                 self.lda(Absolute);
             }
             0xb1 => {
-                self.lda(IndirectYIndexed);
+                self.lda(Indirect_Y_Idxd);
             }
             0xb5 => {
-                self.lda(ZeroPage_X);
+                self.lda(ZP_X_Idxd);
             }
             0xb9 => {
-                self.lda(Absolute_Y);
+                self.lda(Abs_Y_Idxd);
             }
             0xbd => {
-                self.lda(Absolute_X);
+                self.lda(Abs_X_Idxd);
             }
 
             0xa2 => {
                 self.ldx(Immediate);
             }
             0xa6 => {
-                self.ldx(ZeroPage);
-            }
-            0xb6 => {
-                self.ldx(ZeroPage_Y);
+                self.ldx(ZP);
             }
             0xae => {
                 self.ldx(Absolute);
             }
+            0xb6 => {
+                self.ldx(ZP_Y_Idxd);
+            }
             0xbe => {
-                self.ldx(Absolute_Y);
+                self.ldx(Abs_Y_Idxd);
             }
 
             0xa0 => {
                 self.ldy(Immediate);
             }
             0xa4 => {
-                self.ldy(ZeroPage);
-            }
-            0xb4 => {
-                self.ldy(ZeroPage_X);
+                self.ldy(ZP);
             }
             0xac => {
                 self.ldy(Absolute);
             }
+            0xb4 => {
+                self.ldy(ZP_X_Idxd);
+            }
             0xbc => {
-                self.ldy(Absolute_X);
+                self.ldy(Abs_X_Idxd);
             }
 
-            0x85 => {
-                self.sta(ZeroPage);
+            0x81 => {
+                self.sta(XIdxd_Indirect);
             }
-            0x95 => {
-                self.sta(ZeroPage_X);
+            0x85 => {
+                self.sta(ZP);
             }
             0x8d => {
                 self.sta(Absolute);
             }
-            0x9d => {
-                self.sta(Absolute_X);
+            0x91 => {
+                self.sta(Indirect_Y_Idxd);
+            }
+            0x95 => {
+                self.sta(ZP_X_Idxd);
             }
             0x99 => {
-                self.sta(Absolute_Y);
+                self.sta(Abs_Y_Idxd);
             }
-            0x81 => {
-                self.sta(XIndexedIndirect);
-            }
-            0x91 => {
-                self.sta(IndirectYIndexed);
+            0x9d => {
+                self.sta(Abs_X_Idxd);
             }
 
             0x86 => {
-                self.stx(ZeroPage);
-            }
-            0x96 => {
-                self.stx(ZeroPage_Y);
+                self.stx(ZP);
             }
             0x8e => {
                 self.stx(Absolute);
             }
+            0x96 => {
+                self.stx(ZP_Y_Idxd);
+            }
 
             0x84 => {
-                self.sty(ZeroPage);
-            }
-            0x94 => {
-                self.sty(ZeroPage_X);
+                self.sty(ZP);
             }
             0x8c => {
                 self.sty(Absolute);
             }
+            0x94 => {
+                self.sty(ZP_X_Idxd);
+            }
 
             // comparisons
-            0xc9 => {
-                self.cmp(Immediate);
+            0xc1 => {
+                self.cmp(XIdxd_Indirect);
             }
             0xc5 => {
-                self.cmp(ZeroPage);
+                self.cmp(ZP);
             }
-            0xd5 => {
-                self.cmp(ZeroPage_X);
+            0xc9 => {
+                self.cmp(Immediate);
             }
             0xcd => {
                 self.cmp(Absolute);
             }
-            0xdd => {
-                self.cmp(Absolute_X);
+            0xd1 => {
+                self.cmp(Indirect_Y_Idxd);
+            }
+            0xd5 => {
+                self.cmp(ZP_X_Idxd);
             }
             0xd9 => {
-                self.cmp(Absolute_Y);
+                self.cmp(Abs_Y_Idxd);
             }
-            0xc1 => {
-                self.cmp(XIndexedIndirect);
-            }
-            0xd1 => {
-                self.cmp(IndirectYIndexed);
+            0xdd => {
+                self.cmp(Abs_X_Idxd);
             }
 
             0xe0 => {
                 self.cpx(Immediate);
             }
             0xe4 => {
-                self.cpx(ZeroPage);
+                self.cpx(ZP);
             }
             0xec => {
                 self.cpx(Absolute);
@@ -266,251 +253,252 @@ impl Six502 {
                 self.cpy(Immediate);
             }
             0xc4 => {
-                self.cpy(ZeroPage);
+                self.cpy(ZP);
             }
             0xcc => {
                 self.cpy(Absolute);
             }
 
             // transfers
-            0xaa => this.tax(),
-            0xa8 => this.tay(),
-            0x8a => this.txa(),
-            0x98 => this.tya(),
-            0x9a => this.txs(),
-            0xba => this.tsx(),
+            0xaa => self.tax(),
+            0xa8 => self.tay(),
+            0x8a => self.txa(),
+            0x98 => self.tya(),
+            0x9a => self.txs(),
+            0xba => self.tsx(),
 
             // stack ops
-            0x48 => this.pha(),
-            0x68 => this.pla(),
-            0x08 => this.php(),
-            0x28 => this.plp(),
+            0x08 => self.php(), //implied addressing
+            0x28 => self.plp(), //implied addressing
+            0x48 => self.pha(), //implied addressing
+            0x68 => self.pla(), //implied addressing
 
             // logical ops
-            0x29 => {
-                self.and(Immediate);
+            0x21 => {
+                self.and(XIdxd_Indirect);
             }
             0x25 => {
-                self.and(ZeroPage);
+                self.and(ZP);
             }
-            0x35 => {
-                self.and(ZeroPage_X);
+            0x29 => {
+                self.and(Immediate);
             }
             0x2d => {
                 self.and(Absolute);
             }
-            0x3d => {
-                self.and(Absolute_X);
-            }
-            0x39 => {
-                self.and(Absolute_Y);
-            }
-            0x21 => {
-                self.and(XIndexedIndirect);
+            0x35 => {
+                self.and(ZP_X_Idxd);
             }
             0x31 => {
-                self.and(IndirectYIndexed);
+                self.and(Indirect_Y_Idxd);
+            }
+            0x39 => {
+                self.and(Abs_Y_Idxd);
+            }
+            0x3d => {
+                self.and(Abs_X_Idxd);
             }
 
-            0x09 => {
-                self.ora(Immediate);
+            0x01 => {
+                self.ora(XIdxd_Indirect);
             }
             0x05 => {
-                self.ora(ZeroPage);
+                self.ora(ZP);
             }
-            0x15 => {
-                self.ora(ZeroPage_X);
+            0x09 => {
+                self.ora(Immediate);
             }
             0x0d => {
                 self.ora(Absolute);
             }
+            0x11 => {
+                self.ora(Indirect_Y_Idxd);
+            }
+            0x15 => {
+                self.ora(ZP_X_Idxd);
+            }
             0x1d => {
-                self.ora(Absolute_X);
+                self.ora(Abs_X_Idxd);
             }
             0x19 => {
-                self.ora(Absolute_Y);
-            }
-            0x01 => {
-                self.ora(XIndexedIndirect);
-            }
-            0x11 => {
-                self.ora(IndirectYIndexed);
+                self.ora(Abs_Y_Idxd);
             }
 
-            0x49 => {
-                self.eor(Immediate);
+            0x41 => {
+                self.eor(XIdxd_Indirect);
             }
             0x45 => {
-                self.eor(ZeroPage);
+                self.eor(ZP);
             }
-            0x55 => {
-                self.eor(ZeroPage_X);
+            0x49 => {
+                self.eor(Immediate);
             }
             0x4d => {
                 self.eor(Absolute);
             }
+            0x51 => {
+                self.eor(Indirect_Y_Idxd);
+            }
+            0x55 => {
+                self.eor(ZP_X_Idxd);
+            }
             0x5d => {
-                self.eor(Absolute_X);
+                self.eor(Abs_X_Idxd);
             }
             0x59 => {
-                self.eor(Absolute_Y);
-            }
-            0x41 => {
-                self.eor(XIndexedIndirect);
-            }
-            0x51 => {
-                self.eor(IndirectYIndexed);
+                self.eor(Abs_Y_Idxd);
             }
 
+            // bit test
             0x24 => {
-                self.bit(ZeroPage);
+                self.bit(ZP); //bit test
             }
             0x2c => {
-                self.bit(Absolute);
+                self.bit(Absolute); // bit test
             }
 
             // arithmetic ops
-            0x69 => {
-                self.adc(Immediate);
+            0x61 => {
+                self.adc(XIdxd_Indirect);
             }
             0x65 => {
-                self.adc(ZeroPage);
+                self.adc(ZP);
             }
-            0x75 => {
-                self.adc(ZeroPage_X);
+            0x69 => {
+                self.adc(Immediate);
             }
             0x6d => {
                 self.adc(Absolute);
             }
-            0x7d => {
-                self.adc(Absolute_X);
+            0x71 => {
+                self.adc(Indirect_Y_Idxd);
+            }
+            0x75 => {
+                self.adc(ZP_X_Idxd);
             }
             0x79 => {
-                self.adc(Absolute_Y);
+                self.adc(Abs_Y_Idxd);
             }
-            0x61 => {
-                self.adc(XIndexedIndirect);
-            }
-            0x71 => {
-                self.adc(IndirectYIndexed);
+            0x7d => {
+                self.adc(Abs_X_Idxd);
             }
 
-            0xe9 => {
-                self.sbc(Immediate);
+            0xe1 => {
+                self.sbc(XIdxd_Indirect);
             }
             0xe5 => {
-                self.sbc(ZeroPage);
+                self.sbc(ZP);
             }
-            0xf5 => {
-                self.sbc(ZeroPage_X);
+            0xe9 => {
+                self.sbc(Immediate);
             }
             0xed => {
                 self.sbc(Absolute);
             }
-            0xfd => {
-                self.sbc(Absolute_X);
+            0xf1 => {
+                self.sbc(Indirect_Y_Idxd);
+            }
+            0xf5 => {
+                self.sbc(ZP_X_Idxd);
             }
             0xf9 => {
-                self.sbc(Absolute_Y);
+                self.sbc(Abs_Y_Idxd);
             }
-            0xe1 => {
-                self.sbc(XIndexedIndirect);
-            }
-            0xf1 => {
-                self.sbc(IndirectYIndexed);
+            0xfd => {
+                self.sbc(Abs_X_Idxd);
             }
 
             //incrs and decrs
-            0xe6 => self.inc(ZeroPage),
-            0xf6 => self.inc(ZeroPage_X),
+            0xe6 => self.inc(ZP),
             0xee => self.inc(Absolute),
-            0xfe => self.inc(Absolute_X),
+            0xf6 => self.inc(ZP_X_Idxd),
+            0xfe => self.inc(Abs_X_Idxd),
 
-            0xc6 => self.dec(ZeroPage),
-            0xd6 => self.dec(ZeroPage_X),
+            0xc6 => self.dec(ZP),
             0xce => self.dec(Absolute),
-            0xde => self.dec(Absolute_X),
+            0xd6 => self.dec(ZP_X_Idxd),
+            0xde => self.dec(Abs_X_Idxd),
 
-            0xe8 => this.inx(),
-            0xca => this.dex(),
-            0xc8 => this.iny(),
-            0x88 => this.dey(),
+            0xe8 => self.inx(),
+            0xca => self.dex(),
+            0xc8 => self.iny(),
+            0x88 => self.dey(),
 
             // shifts
+            0x26 => {
+                self.rol(ZP);
+            }
             0x2a => {
                 self.rol(Accumulator);
-            }
-            0x26 => {
-                self.rol(ZeroPage);
-            }
-            0x36 => {
-                self.rol(ZeroPage_X);
             }
             0x2e => {
                 self.rol(Absolute);
             }
+            0x36 => {
+                self.rol(ZP_X_Idxd);
+            }
             0x3e => {
-                self.rol(Absolute_X);
+                self.rol(Abs_X_Idxd);
             }
 
+            0x66 => {
+                self.ror(ZP);
+            }
             0x6a => {
                 self.ror(Accumulator);
-            }
-            0x66 => {
-                self.ror(ZeroPage);
-            }
-            0x76 => {
-                self.ror(ZeroPage_X);
             }
             0x6e => {
                 self.ror(Absolute);
             }
+            0x76 => {
+                self.ror(ZP_X_Idxd);
+            }
             0x7e => {
-                self.ror(Absolute_X);
+                self.ror(Abs_X_Idxd);
             }
 
-            0x0a => self.asl(Accumulator),
-            0x06 => self.asl(ZeroPage),
-            0x16 => self.asl(ZeroPage_X),
+            0x06 => self.asl(ZP),
             0x0e => self.asl(Absolute),
-            0x1e => self.asl(Absolute_X),
+            0x0a => self.asl(Accumulator),
+            0x16 => self.asl(ZP_X_Idxd),
+            0x1e => self.asl(Abs_X_Idxd),
 
             0x4a => self.lsr(Accumulator),
-            0x46 => self.lsr(ZeroPage),
-            0x56 => self.lsr(ZeroPage_X),
+            0x46 => self.lsr(ZP),
             0x4e => self.lsr(Absolute),
-            0x5e => self.lsr(Absolute_X),
+            0x56 => self.lsr(ZP_X_Idxd),
+            0x5e => self.lsr(Abs_X_Idxd),
 
             // jumps and calls
-            0x4c => this.jmp(),
-            0x6c => this.jmpi(),
+            0x4c => self.jmp(),  // absolute
+            0x6c => self.jmpi(), // indirect
 
-            0x20 => this.jsr(),
-            0x60 => this.rts(),
-            0x00 => this.brk(),
-            0x40 => this.rti(),
+            0x20 => self.jsr(), // absolute
+            0x60 => self.rts(), // implied. In an implied instruction, the data and/or destination is mandatory for the instruction
+            0x00 => self.brk(), // implied
+            0x40 => self.rti(), // implied
 
             // branches
-            0x10 => this.bpl(),
-            0x30 => this.bmi(),
-            0x50 => this.bvc(),
-            0x70 => this.bvs(),
-            0x90 => this.bcc(),
-            0xb0 => this.bcs(),
-            0xd0 => this.bne(),
-            0xf0 => this.beq(),
+            0x10 => self.bpl(), // relative The byte after the opcode is the branch offset.
+            0x30 => self.bmi(), // relative
+            0x50 => self.bvc(), // relative
+            0x70 => self.bvs(), // relative
+            0x90 => self.bcc(), // relative
+            0xb0 => self.bcs(), // relative
+            0xd0 => self.bne(), // relative
+            0xf0 => self.beq(), // relative
 
             // status flag changes
-            0x18 => this.clc(),
-            0x38 => this.sec(),
-            0x58 => this.cli(),
-            0x78 => this.sei(),
-            0xb8 => this.clv(),
-            0xd8 => this.cld(),
-            0xf8 => this.sed(),
+            0x18 => self.clc(), // implied. In an implied instruction, the data and/or destination is mandatory for the instruction
+            0x38 => self.sec(), // implied
+            0x58 => self.cli(), // implied
+            0x78 => self.sei(), // implied
+            0xb8 => self.clv(), // implied
+            0xd8 => self.cld(), // implied
+            0xf8 => self.sed(), // implied
 
             // no-op
-            0xea => this.nop(),
+            0xea => self.nop(),
 
             _ => unimplemented!("op not unimplemented: {}", op),
         }

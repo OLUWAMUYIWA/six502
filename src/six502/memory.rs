@@ -32,7 +32,7 @@ impl Ram {
 
     // 6502 arranges integers in little-endian order. lower bytes first
     pub(super) fn load_u16(&self, addr: u16) -> u16 {
-        self.load_u8(addr & 0x7ff) as u16 | ((self.load_u8((addr + 1) & 0x7ff) as u16) << 8)
+        u16::from_le_bytes([self.load_u8(addr & 0x7ff), self.load_u8((addr + 1) & 0x7ff)])
     }
 
     pub(super) fn store_u8(&mut self, addr: u16, val: u8) {
@@ -56,8 +56,12 @@ impl Six502 {
             0x4016 => todo!("controller"),
             0x4018 => todo!("apu"),
             0x4020..=0xffff => todo!("mapper"),
-            _ => panic!("inalid load from: {:02x}", addr),
+            _ => panic!("invalid load from: {:02x}", addr),
         }
+    }
+
+    pub fn load_u16(&mut self, addr: u16) -> u16 {
+        u16::from_le_bytes([self.load_u8(addr), self.load_u8(addr + 1)])
     }
 
     pub fn store_u8(&mut self, addr: u16, val: u8) {
@@ -70,4 +74,11 @@ impl Six502 {
             _ => panic!("invalid store to {:02x}", addr),
         }
     }
+
+    pub fn store_u16(&mut self, addr: u16, val: u16) {
+        self.store_u8(addr, val as u8);
+        self.store_u8(addr + 1, (val >> 8) as u8);
+    }
 }
+
+//https://www.nesdev.org/wiki/CPU_memory_map
