@@ -1,5 +1,7 @@
 use addressing::AddressingMode::*;
+use bitflags::*;
 mod addressing;
+mod check;
 mod disasm;
 mod memory;
 mod opcodes;
@@ -11,7 +13,7 @@ const RESET_VECTOR: usize = 0xfffc;
 const IRQ_VECTOR: usize = 0xfffe;
 const BRK_VECTOR: u16 = 0xfffe;
 
-bitflags::bitflags! {
+bitflags! {
     pub struct Flags: u8 {
         const CARRY = 0b00000001;
         const ZERO = 0b00000010; //set to 1 on equality
@@ -23,6 +25,8 @@ bitflags::bitflags! {
         const NEGATIVE= 0b10000000;
     }
 }
+
+impl Flags {}
 pub(super) mod flags {
     pub const CARRY: u8 = 1 << 0;
     pub const ZERO: u8 = 1 << 1; //set to 1 on equality
@@ -44,7 +48,8 @@ pub struct Six502 {
     y: u8,
     pc: u16,
     s: u8,
-    p: u8, // flags
+    cy: u64,
+    p: Flags, // flags
     pub ram: Ram,
 }
 
@@ -56,24 +61,13 @@ impl Six502 {
             y: 0,
             pc: 0xc000,
             s: 0xfd,
+            cy: u64,
             p: 0x24,
             ram: Ram::new(),
         }
     }
     pub fn step(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         Ok(())
-    }
-
-    pub(super) fn load_u8_bump_pc(&mut self) -> u8 {
-        let addr = self.pc;
-        self.pc += 1;
-        self.load_u8(addr)
-    }
-
-    pub(super) fn load_u16_bump_pc(&mut self) -> u16 {
-        let addr = self.pc;
-        self.pc += 2;
-        self.load_u16(addr)
     }
 
     pub(super) fn update_zero_neg_flags(&mut self, v: u8) {
@@ -110,154 +104,70 @@ lazy_static::lazy_static! {
 }
 
 impl Six502 {
-    pub fn exec(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub(super) fn check_over(&mut self, over: bool) {
+        if over {
+            self.cy.wrapping_add(1);
+        }
+    }
+
+    pub fn exec(&mut self) -> Result<bool, Box<dyn std::error::Error>> {
         let op = self.load_u8_bump_pc();
         match op {
             // load/stores
-            0xa1 => {
-                self.lda(XIdxd_Indirect);
-            }
-            0xa5 => {
-                self.lda(ZP);
-            }
-            0xa9 => {
-                self.lda(Immediate);
-            }
-            0xad => {
-                self.lda(Absolute);
-            }
-            0xb1 => {
-                self.lda(Indirect_Y_Idxd);
-            }
-            0xb5 => {
-                self.lda(ZP_X_Idxd);
-            }
-            0xb9 => {
-                self.lda(Abs_Y_Idxd);
-            }
-            0xbd => {
-                self.lda(Abs_X_Idxd);
-            }
+            0xa1 => self.lda(XIdxd_Indirect),
+            0xa5 => self.lda(ZP),
+            0xa9 => self.lda(Immediate),
+            0xad => self.lda(Absolute),
+            0xb1 => self.lda(Indirect_Y_Idxd),
+            0xb5 => self.lda(ZP_X_Idxd),
+            0xb9 => self.lda(Abs_Y_Idxd),
+            0xbd => self.lda(Abs_X_Idxd),
 
-            0xa2 => {
-                self.ldx(Immediate);
-            }
-            0xa6 => {
-                self.ldx(ZP);
-            }
-            0xae => {
-                self.ldx(Absolute);
-            }
-            0xb6 => {
-                self.ldx(ZP_Y_Idxd);
-            }
-            0xbe => {
-                self.ldx(Abs_Y_Idxd);
-            }
+            0xa2 => self.ldx(Immediate),
+            0xa6 => self.ldx(ZP),
+            0xae => self.ldx(Absolute),
+            0xb6 => self.ldx(ZP_Y_Idxd),
+            0xbe => self.ldx(Abs_Y_Idxd),
 
-            0xa0 => {
-                self.ldy(Immediate);
-            }
-            0xa4 => {
-                self.ldy(ZP);
-            }
-            0xac => {
-                self.ldy(Absolute);
-            }
-            0xb4 => {
-                self.ldy(ZP_X_Idxd);
-            }
-            0xbc => {
-                self.ldy(Abs_X_Idxd);
-            }
+            0xa0 => self.ldy(Immediate),
+            0xa4 => self.ldy(ZP),
+            0xac => self.ldy(Absolute),
+            0xb4 => self.ldy(ZP_X_Idxd),
+            0xbc => self.ldy(Abs_X_Idxd),
 
-            0x81 => {
-                self.sta(XIdxd_Indirect);
-            }
-            0x85 => {
-                self.sta(ZP);
-            }
-            0x8d => {
-                self.sta(Absolute);
-            }
-            0x91 => {
-                self.sta(Indirect_Y_Idxd);
-            }
-            0x95 => {
-                self.sta(ZP_X_Idxd);
-            }
-            0x99 => {
-                self.sta(Abs_Y_Idxd);
-            }
-            0x9d => {
-                self.sta(Abs_X_Idxd);
-            }
+            0x81 => self.sta(XIdxd_Indirect),
+            0x85 => self.sta(ZP),
+            0x8d => self.sta(Absolute),
+            0x91 => self.sta(Indirect_Y_Idxd),
+            0x95 => self.sta(ZP_X_Idxd),
+            0x99 => self.sta(Abs_Y_Idxd),
+            0x9d => self.sta(Abs_X_Idxd),
 
-            0x86 => {
-                self.stx(ZP);
-            }
-            0x8e => {
-                self.stx(Absolute);
-            }
-            0x96 => {
-                self.stx(ZP_Y_Idxd);
-            }
+            0x86 => self.stx(ZP),
+            0x8e => self.stx(Absolute),
+            0x96 => self.stx(ZP_Y_Idxd),
 
-            0x84 => {
-                self.sty(ZP);
-            }
-            0x8c => {
-                self.sty(Absolute);
-            }
-            0x94 => {
-                self.sty(ZP_X_Idxd);
-            }
+            0x84 => self.sty(ZP),
+            0x8c => self.sty(Absolute),
+            0x94 => self.sty(ZP_X_Idxd),
 
             // comparisons
-            0xc1 => {
-                self.cmp(XIdxd_Indirect);
-            }
-            0xc5 => {
-                self.cmp(ZP);
-            }
-            0xc9 => {
-                self.cmp(Immediate);
-            }
-            0xcd => {
-                self.cmp(Absolute);
-            }
-            0xd1 => {
-                self.cmp(Indirect_Y_Idxd);
-            }
-            0xd5 => {
-                self.cmp(ZP_X_Idxd);
-            }
-            0xd9 => {
-                self.cmp(Abs_Y_Idxd);
-            }
-            0xdd => {
-                self.cmp(Abs_X_Idxd);
-            }
+            0xc1 => self.cmp(XIdxd_Indirect),
+            0xc5 => self.cmp(ZP),
+            0xc9 => self.cmp(Immediate),
+            0xcd => self.cmp(Absolute),
+            0xd1 => self.cmp(Indirect_Y_Idxd),
+            0xd5 => self.cmp(ZP_X_Idxd),
+            0xd9 => self.cmp(Abs_Y_Idxd),
+            0xdd => self.cmp(Abs_X_Idxd),
 
-            0xe0 => {
-                self.cpx(Immediate);
-            }
-            0xe4 => {
-                self.cpx(ZP);
-            }
-            0xec => {
-                self.cpx(Absolute);
-            }
+            0xe0 => self.cpx(Immediate),
+            0xe4 => self.cpx(ZP),
+            0xec => self.cpx(Absolute),
 
-            0xc0 => {
-                self.cpy(Immediate);
-            }
-            0xc4 => {
-                self.cpy(ZP);
-            }
-            0xcc => {
-                self.cpy(Absolute);
-            }
+            0xc0 => self.cpy(Immediate),
+            0xc4 => self.cpy(ZP),
+            0xcc => self.cpy(Absolute),
 
             // transfers
             0xaa => self.tax(),
@@ -274,139 +184,59 @@ impl Six502 {
             0x68 => self.pla(), //implied addressing
 
             // logical ops
-            0x21 => {
-                self.and(XIdxd_Indirect);
-            }
-            0x25 => {
-                self.and(ZP);
-            }
-            0x29 => {
-                self.and(Immediate);
-            }
-            0x2d => {
-                self.and(Absolute);
-            }
-            0x35 => {
-                self.and(ZP_X_Idxd);
-            }
-            0x31 => {
-                self.and(Indirect_Y_Idxd);
-            }
-            0x39 => {
-                self.and(Abs_Y_Idxd);
-            }
-            0x3d => {
-                self.and(Abs_X_Idxd);
-            }
+            0x21 => self.and(XIdxd_Indirect),
+            0x25 => self.and(ZP),
+            0x29 => self.and(Immediate),
+            0x2d => self.and(Absolute),
+            0x35 => self.and(ZP_X_Idxd),
+            0x31 => self.and(Indirect_Y_Idxd),
+            0x39 => self.and(Abs_Y_Idxd),
+            0x3d => self.and(Abs_X_Idxd),
 
-            0x01 => {
-                self.ora(XIdxd_Indirect);
-            }
-            0x05 => {
-                self.ora(ZP);
-            }
-            0x09 => {
-                self.ora(Immediate);
-            }
-            0x0d => {
-                self.ora(Absolute);
-            }
-            0x11 => {
-                self.ora(Indirect_Y_Idxd);
-            }
-            0x15 => {
-                self.ora(ZP_X_Idxd);
-            }
-            0x1d => {
-                self.ora(Abs_X_Idxd);
-            }
-            0x19 => {
-                self.ora(Abs_Y_Idxd);
-            }
+            0x01 => self.ora(XIdxd_Indirect),
+            0x05 => self.ora(ZP),
+            0x09 => self.ora(Immediate),
+            0x0d => self.ora(Absolute),
+            0x11 => self.ora(Indirect_Y_Idxd),
+            0x15 => self.ora(ZP_X_Idxd),
+            0x1d => self.ora(Abs_X_Idxd),
+            0x19 => self.ora(Abs_Y_Idxd),
 
-            0x41 => {
-                self.eor(XIdxd_Indirect);
-            }
-            0x45 => {
-                self.eor(ZP);
-            }
-            0x49 => {
-                self.eor(Immediate);
-            }
-            0x4d => {
-                self.eor(Absolute);
-            }
-            0x51 => {
-                self.eor(Indirect_Y_Idxd);
-            }
-            0x55 => {
-                self.eor(ZP_X_Idxd);
-            }
-            0x5d => {
-                self.eor(Abs_X_Idxd);
-            }
-            0x59 => {
-                self.eor(Abs_Y_Idxd);
-            }
+            0x41 => self.eor(XIdxd_Indirect),
+            0x45 => self.eor(ZP),
+            0x49 => self.eor(Immediate),
+            0x4d => self.eor(Absolute),
+            0x51 => self.eor(Indirect_Y_Idxd),
+            0x55 => self.eor(ZP_X_Idxd),
+            0x5d => self.eor(Abs_X_Idxd),
+            0x59 => self.eor(Abs_Y_Idxd),
 
             // bit test
             0x24 => {
-                self.bit(ZP); //bit test
+                self.bit(ZP) //bit test
             }
             0x2c => {
-                self.bit(Absolute); // bit test
+                self.bit(Absolute) // bit test
             }
 
             // arithmetic ops
-            0x61 => {
-                self.adc(XIdxd_Indirect);
-            }
-            0x65 => {
-                self.adc(ZP);
-            }
-            0x69 => {
-                self.adc(Immediate);
-            }
-            0x6d => {
-                self.adc(Absolute);
-            }
-            0x71 => {
-                self.adc(Indirect_Y_Idxd);
-            }
-            0x75 => {
-                self.adc(ZP_X_Idxd);
-            }
-            0x79 => {
-                self.adc(Abs_Y_Idxd);
-            }
-            0x7d => {
-                self.adc(Abs_X_Idxd);
-            }
+            0x61 => self.adc(XIdxd_Indirect),
+            0x65 => self.adc(ZP),
+            0x69 => self.adc(Immediate),
+            0x6d => self.adc(Absolute),
+            0x71 => self.adc(Indirect_Y_Idxd),
+            0x75 => self.adc(ZP_X_Idxd),
+            0x79 => self.adc(Abs_Y_Idxd),
+            0x7d => self.adc(Abs_X_Idxd),
 
-            0xe1 => {
-                self.sbc(XIdxd_Indirect);
-            }
-            0xe5 => {
-                self.sbc(ZP);
-            }
-            0xe9 => {
-                self.sbc(Immediate);
-            }
-            0xed => {
-                self.sbc(Absolute);
-            }
-            0xf1 => {
-                self.sbc(Indirect_Y_Idxd);
-            }
-            0xf5 => {
-                self.sbc(ZP_X_Idxd);
-            }
-            0xf9 => {
-                self.sbc(Abs_Y_Idxd);
-            }
-            0xfd => {
-                self.sbc(Abs_X_Idxd);
-            }
+            0xe1 => self.sbc(XIdxd_Indirect),
+            0xe5 => self.sbc(ZP),
+            0xe9 => self.sbc(Immediate),
+            0xed => self.sbc(Absolute),
+            0xf1 => self.sbc(Indirect_Y_Idxd),
+            0xf5 => self.sbc(ZP_X_Idxd),
+            0xf9 => self.sbc(Abs_Y_Idxd),
+            0xfd => self.sbc(Abs_X_Idxd),
 
             //incrs and decrs
             0xe6 => self.inc(ZP),
@@ -425,37 +255,17 @@ impl Six502 {
             0x88 => self.dey(),
 
             // shifts
-            0x26 => {
-                self.rol(ZP);
-            }
-            0x2a => {
-                self.rol(Accumulator);
-            }
-            0x2e => {
-                self.rol(Absolute);
-            }
-            0x36 => {
-                self.rol(ZP_X_Idxd);
-            }
-            0x3e => {
-                self.rol(Abs_X_Idxd);
-            }
+            0x26 => self.rol(ZP),
+            0x2a => self.rol(Accumulator),
+            0x2e => self.rol(Absolute),
+            0x36 => self.rol(ZP_X_Idxd),
+            0x3e => self.rol(Abs_X_Idxd),
 
-            0x66 => {
-                self.ror(ZP);
-            }
-            0x6a => {
-                self.ror(Accumulator);
-            }
-            0x6e => {
-                self.ror(Absolute);
-            }
-            0x76 => {
-                self.ror(ZP_X_Idxd);
-            }
-            0x7e => {
-                self.ror(Abs_X_Idxd);
-            }
+            0x66 => self.ror(ZP),
+            0x6a => self.ror(Accumulator),
+            0x6e => self.ror(Absolute),
+            0x76 => self.ror(ZP_X_Idxd),
+            0x7e => self.ror(Abs_X_Idxd),
 
             0x06 => self.asl(ZP),
             0x0e => self.asl(Absolute),
