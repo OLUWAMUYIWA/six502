@@ -1,7 +1,6 @@
 use addressing::AddressingMode::*;
 use bitflags::*;
 mod addressing;
-mod check;
 mod disasm;
 mod memory;
 mod opcodes;
