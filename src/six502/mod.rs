@@ -1,7 +1,12 @@
+use self::{addressing::AddressingMode, memory::Ram};
 use addressing::AddressingMode::*;
 use bitflags::*;
+use lazy_static::lazy_static;
+use std::collections::HashMap;
+
 mod addressing;
 mod disasm;
+mod interrupt;
 mod memory;
 mod opcodes;
 mod util;
@@ -12,20 +17,27 @@ const RESET_VECTOR: usize = 0xfffc;
 const IRQ_VECTOR: usize = 0xfffe;
 const BRK_VECTOR: u16 = 0xfffe;
 
-bitflags! {
-    pub struct Flags: u8 {
-        const CARRY = 0b00000001;
-        const ZERO = 0b00000010; //set to 1 on equality
-        const IRQ = 0b00000100;
-        const DECIMAL= 0b00001000;
-        const BREAK =    0b00010000;
-        //unused bit pos
-        const OVERFLOW = 0b01000000;
-        const NEGATIVE= 0b10000000;
-    }
-}
+// |   |   |   |   |   |   |   |   |
+// | N | V |   | B | D | I | Z | C |     PROCESSOR STATUS REGISTER
+// |   |   |   |   |   |   |   |   |
+// |   |   |   |   |   |   |   |
+// |   |   |   |   |   |   |   +------ CARRY
+// |   |   |   |   |   |   |
+// |   |   |   |   |   |   +---------- ZERO RESULT
+// |   |   |   |   |   |
+// |   |   |   |   |   +-------------- INTERRUPT DISABLE
+// |   |   |   |   |
+// |   |   |   |   +------------------ DECIMAL MODE
+// |   |   |   |
+// |   |   |   +---------------------- BREAK COMMAND
+// |   |   |
+// |   |   +-------------------------- EXPANSION
+// |
+// |   +------------------------------ OVERFLOW
+// |
+// +---------------------------------- NEGATIVE RESULT
+// http://users.telenet.be/kim1-6502/6502/proman.html#3
 
-impl Flags {}
 pub(super) mod flags {
     pub const CARRY: u8 = 1 << 0;
     pub const ZERO: u8 = 1 << 1; //set to 1 on equality
@@ -37,10 +49,6 @@ pub(super) mod flags {
     pub const NEGATIVE: u8 = 1 << 7;
 }
 
-use std::collections::HashMap;
-
-use self::{addressing::AddressingMode, memory::Ram};
-
 pub struct Six502 {
     a: u8,
     x: u8,
@@ -48,7 +56,7 @@ pub struct Six502 {
     pc: u16,
     s: u8,
     cy: u64,
-    p: Flags, // flags
+    p: u8, // flags
     pub ram: Ram,
 }
 
@@ -69,18 +77,20 @@ impl Six502 {
         Ok(())
     }
 
-    pub(super) fn update_zero_neg_flags(&mut self, v: u8) {
+    pub(super) fn update_z(&mut self, v: u8) {
         if v == 0 {
             self.flag_on(flags::ZERO);
         }
+    }
 
+    pub(super) fn update_n(&mut self, v: u8) {
         if v & 0x80 != 0 {
             self.flag_on(flags::NEGATIVE);
         }
     }
 }
 
-lazy_static::lazy_static! {
+lazy_static! {
     static ref CYCLES: [u8; 256] = [
         //       0, 1, 2, 3, 4, 5, 6, 7, 8, 9, A, B, C, D, E, F
         /*0*/    7, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2, 2, 4, 4, 6, 6,
@@ -103,15 +113,9 @@ lazy_static::lazy_static! {
 }
 
 impl Six502 {
-    pub(super) fn check_over(&mut self, over: bool) {
-        if over {
-            self.cy.wrapping_add(1);
-        }
-    }
-
     pub fn exec(&mut self) -> Result<bool, Box<dyn std::error::Error>> {
         let op = self.load_u8_bump_pc();
-        match op {
+        let page_cross = match op {
             // load/stores
             0xa1 => self.lda(XIdxd_Indirect),
             0xa5 => self.lda(ZP),
@@ -310,7 +314,17 @@ impl Six502 {
             0xea => self.nop(),
 
             _ => unimplemented!("op not unimplemented: {}", op),
-        }
+        };
+        self.cy
+            .wrapping_add(CYCLES[op as usize] as u64)
+            .wrapping_add(page_cross as u64);
+
         Ok(())
+    }
+
+    pub(super) fn apply_pg_cross(&mut self, over: bool) {
+        if over {
+            self.cy.wrapping_add(1);
+        }
     }
 }

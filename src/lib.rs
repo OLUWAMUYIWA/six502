@@ -2,6 +2,7 @@
 mod apu;
 mod common;
 mod ctrl;
+mod input;
 mod nes;
 mod ppu;
 mod rom;

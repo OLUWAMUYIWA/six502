@@ -49,6 +49,8 @@ pub enum AddressingMode {
 }
 
 impl AddressingMode {
+    /// load loads a byte from memory based on the addressing mode. It returns a tuple; the byte being fetched, and a boolean
+    /// indicating if there is a page cross while loading the byte.
     pub(super) fn load(&self, cpu: &mut Six502) -> (u8, bool) {
         match self {
             AddressingMode::Accumulator => (cpu.a, false),
