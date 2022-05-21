@@ -8,4 +8,8 @@ impl Apu {
     pub(crate) fn load_u8(&self, addr: u16) -> u8 {
         todo!()
     }
+
+    pub(crate) fn store_u8(&self, addr: u16) {
+        todo!()
+    }
 }

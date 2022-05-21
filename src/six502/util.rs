@@ -1,35 +1,76 @@
 use super::addressing;
 use super::{Six502, STACK_OFFSET};
+use crate::bus::{ByteAccess, WordAccess};
 use std::ops::{Add, AddAssign};
 
 impl Six502 {
     // stack helpers
     pub(super) fn push_u8(&mut self, b: u8) {
-        let addr = (STACK_OFFSET + self.s) as u16;
+        let addr = u16::from(STACK_OFFSET + self.s as u16);
         self.store_u8(addr, b);
         self.s.wrapping_sub(1);
     }
 
     pub(super) fn pull_u8(&mut self) -> u8 {
-        let addr = (STACK_OFFSET + self.s) as u16 + 1;
+        let addr = u16::from(STACK_OFFSET + self.s as u16) + 1;
         let v = self.load_u8(addr);
         self.s.wrapping_add(1);
         v
     }
 
     pub(super) fn push_u16(&mut self, w: u16) {
-        let addr = (STACK_OFFSET + (self.s - 1)) as u16;
+        let addr = u16::from(STACK_OFFSET + (self.s - 1) as u16);
         self.store_u16(addr, w);
         self.s.wrapping_sub(2);
     }
 
     pub(super) fn pull_u16(&mut self) -> u16 {
-        let addr = (STACK_OFFSET + self.s) as u16 + 1;
+        let addr = u16::from(STACK_OFFSET + self.s as u16) + 1;
         let v = self.load_u16(addr);
         self.s.wrapping_add(2);
         v
     }
+
+    pub(super) fn nop(&self) -> bool {
+        false
+    }
 }
+
+// pub fn load_u8(&mut self, addr: u16) -> u8 {
+//     match addr {
+//         0x000..=0x1fff => self.ram.load_u8(addr),
+//         0x2000..=0x3fff => todo!("ppu"),
+//         0x4015 => todo!("apu"),
+//         0x4016 => todo!("controller"),
+//         0x4018 => todo!("apu"),
+//         0x4020..=0xffff => todo!("mapper"),
+//         _ => panic!("invalid load from: {:02x}", addr),
+//     }
+// }
+
+// pub fn load_u16(&mut self, addr: u16) -> u16 {
+//     u16::from_le_bytes([self.load_u8(addr), self.load_u8(addr + 1)])
+// }
+
+// pub fn load_u16_no_carry(&self, addr: u8) -> u16 {
+//     u16::from_le_bytes([self.load_u8(addr as u16), self.load_u8(addr as u16)])
+// }
+
+// pub fn store_u8(&mut self, addr: u16, val: u8) {
+//     match addr {
+//         0x0000..=0x1fff => self.ram.store_u8(addr, val),
+//         0x2000..=0x3fff => todo!("ppu"),
+//         0x4016 => todo!("controller"),
+//         0x4000..=0x4017 => todo!("apu"),
+//         0x4020..=0xFFFF => todo!("mapper"),
+//         _ => panic!("invalid store to {:02x}", addr),
+//     }
+// }
+
+// pub fn store_u16(&mut self, addr: u16, val: u16) {
+//     self.store_u8(addr, val as u8);
+//     self.store_u8(addr + 1, (val >> 8) as u8);
+// }
 
 // Source: https://web.archive.org/web/20210428044647/http://www.obelisk.me.uk/6502/reference.html
 // pub enum OpCode {

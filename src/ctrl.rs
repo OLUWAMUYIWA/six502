@@ -1,3 +1,5 @@
+use std::ops::BitAnd;
+
 //check nesdev: https://www.nesdev.org/wiki/Controller_reading_code
 // JOYPAD1 = $4016
 // JOYPAD2 = $4017
@@ -39,7 +41,7 @@ impl Joypad {
         }
     }
 
-    pub(crate) fn load_u8(&self, addr: u16) -> u8 {
+    pub(crate) fn load_u8(&self) -> u8 {
         if self.index > 7 {
             return 1;
         }

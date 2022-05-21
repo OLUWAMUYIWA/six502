@@ -1,17 +1,19 @@
+use crate::bus::Bus;
+
 use self::{addressing::AddressingMode, memory::Ram};
 use addressing::AddressingMode::*;
 use bitflags::*;
 use lazy_static::lazy_static;
 use std::collections::HashMap;
 
-mod addressing;
-mod disasm;
-mod interrupt;
-mod memory;
+pub(crate) mod addressing;
+pub(crate) mod disasm;
+pub(crate) mod interrupt;
+pub(crate) mod memory;
 mod opcodes;
 mod util;
 
-const STACK_OFFSET: usize = 0x100;
+const STACK_OFFSET: u16 = 0x100;
 const NMI_VECTOR: usize = 0xfffa;
 const RESET_VECTOR: usize = 0xfffc;
 const IRQ_VECTOR: usize = 0xfffe;
@@ -57,7 +59,7 @@ pub struct Six502 {
     s: u8,
     cy: u64,
     p: u8, // flags
-    pub ram: Ram,
+    pub bus: Bus,
 }
 
 impl Six502 {
@@ -68,9 +70,9 @@ impl Six502 {
             y: 0,
             pc: 0xc000,
             s: 0xfd,
-            cy: u64,
+            cy: 0,
             p: 0x24,
-            ram: Ram::new(),
+            bus: Bus::new(),
         }
     }
     pub fn step(&mut self) -> Result<(), Box<dyn std::error::Error>> {
@@ -113,7 +115,7 @@ lazy_static! {
 }
 
 impl Six502 {
-    pub fn exec(&mut self) -> Result<bool, Box<dyn std::error::Error>> {
+    pub fn exec(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         let op = self.load_u8_bump_pc();
         let page_cross = match op {
             // load/stores
@@ -283,8 +285,8 @@ impl Six502 {
             0x5e => self.lsr(Abs_X_Idxd),
 
             // jumps and calls
-            0x4c => self.jmp(),  // absolute
-            0x6c => self.jmpi(), // indirect
+            0x4c => self.jmp(),          // absolute
+            0x6c => self.jmp_indirect(), // indirect
 
             0x20 => self.jsr(), // absolute
             0x60 => self.rts(), // implied. In an implied instruction, the data and/or destination is mandatory for the instruction

@@ -1,31 +1,32 @@
 use super::{addressing::AddressingMode, flags, Six502};
-use super::{BRK_VECTOR, IRQ_VECTOR, NMI_VECTOR, RESET_VECTOR, STACK_OFFSET};
-use std::ops::{BitAnd, BitOr, Shl, Shr};
+use super::{BRK_VECTOR, IRQ_VECTOR, NMI_VECTOR, RESET_VECTOR};
+use crate::bus::{ByteAccess, WordAccess};
+use std::ops::{BitAnd, BitOr, BitOrAssign, Shl, Shr};
 
 // load/store ops
 impl Six502 {
     pub(super) fn lda(&mut self, mode: AddressingMode) -> bool {
-        let (carry, v) = mode.load(self);
+        let (v, cross) = mode.load(self);
         self.a = v;
         self.update_z(v);
         self.update_n(v);
-        carry
+        cross
     }
 
     pub(super) fn ldx(&mut self, mode: AddressingMode) -> bool {
-        let (carry, v) = mode.load(self);
+        let (v, cross) = mode.load(self);
         self.x = v;
         self.update_z(v);
         self.update_n(v);
-        carry
+        cross
     }
 
     pub(super) fn ldy(&mut self, mode: AddressingMode) -> bool {
-        let (carry, v) = mode.load(self);
+        let (v, cross) = mode.load(self);
         self.y = v;
         self.update_z(v);
         self.update_n(v);
-        carry
+        cross
     }
 
     pub(super) fn sta(&mut self, mode: AddressingMode) -> bool {
@@ -242,7 +243,7 @@ impl Six502 {
 
     /// sbc subtracts a value and the inverse of the carry bit from the accumulator.
     pub(super) fn sbc(&mut self, mode: AddressingMode) -> bool {
-        let a = u16::form(self.a);
+        let a = u16::from(self.a);
         let (v, cross) = mode.load(self);
         let b = v as u16;
         let res = if self.is_flag_set(flags::CARRY) {
@@ -323,7 +324,7 @@ impl Six502 {
 impl Six502 {
     pub(super) fn rol(&mut self, mode: AddressingMode) -> bool {
         let (b, cross) = mode.load(self);
-        let mut res = b.shl(1);
+        let mut res: u8 = b.shl(1);
         if self.is_flag_set(flags::CARRY) {
             res.bitor_assign(1);
         }
@@ -339,7 +340,7 @@ impl Six502 {
 
     pub(super) fn asl(&mut self, mode: AddressingMode) -> bool {
         let (b, cross) = mode.load(self);
-        let mut res = b.shl(1);
+        let mut res: u8 = b.shl(1);
         if b & 0x80 != 0 {
             self.flag_on(flags::CARRY);
         }
@@ -352,7 +353,7 @@ impl Six502 {
 
     pub(super) fn ror(&mut self, mode: AddressingMode) -> bool {
         let (b, cross) = mode.load(self);
-        let mut res = b.shr(1);
+        let mut res: u8 = b.shr(1);
         if self.is_flag_set(flags::CARRY) {
             res.bitor_assign(0x80);
         }
@@ -382,14 +383,17 @@ impl Six502 {
 impl Six502 {
     const BRK_VECTOR: u16 = 0xfffe;
 
-    pub(super) fn jmp(&mut self) {
+    // jump with absolute addressing
+    pub(super) fn jmp(&mut self) -> bool {
         self.pc = self.load_u16_bump_pc();
+        false
     }
 
-    pub(super) fn jmpi(&mut self) -> bool {
+    // the other version of jump, but with indirect addressing
+    pub(super) fn jmp_indirect(&mut self) -> bool {
         let op = self.load_u16_bump_pc();
-        let lo = cpu.load_u8(op);
-        let hi = cpu.load_u8((op & 0xff00) | ((op + 1) & 0x00ff));
+        let lo = self.load_u8(op);
+        let hi = self.load_u8((op & 0xff00) | ((op + 1) & 0x00ff));
         self.pc = u16::from_le_bytes([lo, hi]);
         false
     }

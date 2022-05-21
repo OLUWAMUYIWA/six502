@@ -23,15 +23,15 @@ pub struct Rom {
 pub struct Hdr {
     pub prg_rom_size: usize, //Size of PRG ROM in 16 KB units, expanded
     pub chr_rom_size: usize, //  Size of CHR ROM in 8 KB units (Value 0 means the board uses CHR RAM), expanded
-    pub prg_ram_size: u8,    // flag_8
+    pub prg_ram_size: usize,
     pub flags_6: Flags6,
     pub tv_format: TVFormat,
     pub mapper: u8,
 }
 
 pub enum Mirroring {
-    Vertical,
-    Horizontal,
+    VERTICAL,
+    HORIZONTAL,
 }
 
 #[derive(Debug)]
@@ -100,7 +100,7 @@ impl Rom {
 
         let (input, trail) = take(6)(input)?;
         if b"\x00\x00\x00\x00\x00" != trail {
-            return Err(Err::Failure(input, ErrorKind::Fail));
+            return Err(Err::Failure((input, ErrorKind::Fail)));
         }
 
         Ok(Hdr {
@@ -113,8 +113,9 @@ impl Rom {
         })
     }
 
-    fn load_body(hdr: &Hdr, input: &[u8]) -> IResult<&[u8], Rom> {
-        let (input, trainer) = cond(hdr.flags_6.contains(Flags6::TRAINER), take(512))(input)?;
+    fn load_body<'a>(hdr: &Hdr, input: &'a [u8]) -> IResult<&'a [u8], Rom> {
+        let (input, trainer) =
+            cond(hdr.flags_6.contains(Flags6::TRAINER_EXISTS), take(512))(input)?;
         let (input, prg_rom) = take(16384 * hdr.prog_len as usize)(input)?;
         let (input, chr_rom) = take(8192 * hdr.chr_len as usize)(input)?;
         Ok((
@@ -128,20 +129,28 @@ impl Rom {
         ))
     }
 
-    pub fn load_rom(rdr: Read) -> Result<Rom, Box<dyn std::error::Error>> {
+    pub fn load_rom(rdr: impl Read) -> Result<Rom, Box<dyn std::error::Error>> {
         let mut h_buf = [0u8; 16];
-        rdr.read_exact(&mut buf)?;
+        rdr.read_exact(&mut h_buf)?;
         if let IResult::Ok((input, hdr)) = Rom::load_hdr(&h_buf) {
             let mut b_buf = Vec::<u8>::with_capacity();
-            rdr.read_to_end(rdr, &mut b_buf)?;
+            rdr.read_to_end(&mut b_buf)?;
             match Rom::load_body(&hdr, &b_buf) {
-                IResult::Ok((input, rom)) => rom,
-                IResult::Err(err) => err,
+                IResult::Ok((input, rom)) => Ok(rom),
+                IResult::Err(err) => Err(Box::new(err)),
             }
+        } else {
+            Err(Box::<&'static str>::new(
+                format!("Could not load header").into(),
+            ))
         }
     }
 
     pub(crate) fn load_u8(&self, addr: u16) -> u8 {
+        todo!()
+    }
+
+    pub(crate) fn store_u8(&self, addr: u16) {
         todo!()
     }
 }

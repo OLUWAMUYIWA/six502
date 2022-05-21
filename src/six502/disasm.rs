@@ -2,12 +2,14 @@ pub struct DisAsm<'a> {
     prog: &'a [u8],
 }
 
-impl DisAsm {
-    pub fn new<'a>(prog: &'a [u8]) -> Self {}
+impl<'a> DisAsm<'a> {
+    pub fn new(prog: &'a [u8]) -> Self {
+        Self { prog }
+    }
 }
 
 lazy_static::lazy_static! {
-    pub static ref INSTRUCTIONS: [&'static str; 256] = vec![
+    pub static ref INSTRUCTIONS: [&'static str; 256] = [
     "BRK", "ORA izx", "*KIL", "*SLO izx", "*NOP zp", "ORA zp", "ASL zp", "*SLO zp", "PHP", "ORA imm", "ASL", "*ANC imm", "*NOP abs", "ORA abs", "ASL abs", "*SLO abs", "BPL rel",
     "ORA izy", "*KIL", "*SLO izy", "*NOP zpx", "ORA zpx", "ASL zpx", "*SLO zpx", "CLC", "ORA aby", "*NOP", "*SLO aby", "*NOP abx", "ORA abx", "ASL abx", "*SLO abx", "JSR abs", "AND izx", "*KIL",
     "*RLA izx", "BIT zp", "AND zp", "ROL zp", "*RLA zp", "PLP", "AND imm", "ROL", "*ANC imm", "BIT abs", "AND abs", "ROL abs", "*RLA abs", "BMI rel", "AND izy", "*KIL", "*RLA izy",

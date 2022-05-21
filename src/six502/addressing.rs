@@ -2,6 +2,7 @@
 
 use super::flags;
 use super::Six502;
+use crate::bus::{ByteAccess, WordAccess};
 use std::ops::{AddAssign, BitOrAssign, Index, RangeBounds, Shl, Shr};
 
 /// [reference](https://www.masswerk.at/6502/6502_instruction_set.html)
@@ -10,7 +11,7 @@ use std::ops::{AddAssign, BitOrAssign, Index, RangeBounds, Shl, Shr};
 #[allow(non_camel_case_types)]
 pub enum AddressingMode {
     // OPC means `opcode`.
-    // operand is the accumulator. sinle byte instruction
+    // operand is the accumulator. single byte instruction
     Accumulator,
 
     // OPC $LLHH: operand is address $HHLL (i.e. read little-endian)
@@ -99,6 +100,7 @@ impl AddressingMode {
             }
         }
     }
+
     pub(super) fn store(&self, cpu: &mut Six502, v: u8) -> bool {
         match self {
             AddressingMode::Accumulator => {
