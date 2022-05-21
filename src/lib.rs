@@ -1,8 +1,8 @@
 #![allow(unused_imports, dead_code)]
 mod apu;
+mod bus;
 mod common;
 mod ctrl;
-mod input;
 mod nes;
 mod ppu;
 mod rom;

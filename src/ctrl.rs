@@ -32,14 +32,14 @@ impl Joypad {
         }
     }
 
-    pub fn write(&mut self, data: u8) {
+    pub fn store_u8(&mut self, data: u8) {
         self.strobe = data.bitand(1) == 1;
         if self.strobe {
             self.index = 0
         }
     }
 
-    pub fn read(&mut self) -> u8 {
+    pub(crate) fn load_u8(&self, addr: u16) -> u8 {
         if self.index > 7 {
             return 1;
         }

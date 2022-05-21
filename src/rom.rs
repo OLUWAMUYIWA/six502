@@ -69,6 +69,10 @@ impl Flags6 {
 }
 
 impl Rom {
+    pub(crate) fn new() -> Self {
+        todo!()
+    }
+
     fn load_hdr(input: &[u8]) -> IResult<&[u8], Rom> {
         let (input, _) = tag(b"NES\x1a".into())(input)?;
         let (input, prog_len) = be_u8(input)?;
@@ -135,5 +139,9 @@ impl Rom {
                 IResult::Err(err) => err,
             }
         }
+    }
+
+    pub(crate) fn load_u8(&self, addr: u16) -> u8 {
+        todo!()
     }
 }
