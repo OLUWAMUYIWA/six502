@@ -33,7 +33,12 @@ impl<T: ByteAccess> WordAccess for T {
     }
 }
 
-pub struct Bus {
+// The DataBus
+// data has to transfer between the accumulator and the internal registers of the microprocessor and outside sources by means of passing through the microprocessor to 8 lines
+// called the data bus. The outside sources include (in our case) the program which controls the microprocessor, and the actual communications to the world through input/output
+// ports.
+///! The duty of the data bus is to facilitate exchange of data between memory and the processor's internal registers.
+pub struct DataBus {
     pub ram: Ram,
     pub rom: Rom,
     pub apu: Apu,
@@ -44,7 +49,7 @@ pub struct Bus {
     pub cycles: u64,
 }
 
-impl Bus {
+impl DataBus {
     pub fn new() -> Self {
         Self {
             ..Default::default()
@@ -52,7 +57,7 @@ impl Bus {
     }
 }
 
-impl ByteAccess for Bus {
+impl ByteAccess for DataBus {
     fn load_u8(&self, addr: u16) -> u8 {
         match addr {
             0x0000..=0x1FFF => self.ram.load_u8(addr),
@@ -78,7 +83,7 @@ impl ByteAccess for Bus {
     }
 }
 
-impl Default for Bus {
+impl Default for DataBus {
     fn default() -> Self {
         Self {
             ram: Ram::new(),
@@ -92,3 +97,5 @@ impl Default for Bus {
         }
     }
 }
+
+pub struct AddressBus {}

@@ -1,4 +1,9 @@
-use crate::bus::Bus;
+///! six502 emulates the MOS 6502 CPU
+///! Best resource to understand ths is the [MCS book](http://users.telenet.be/kim1-6502/6502/proman.html#90)
+///! Other resources include: Masswerks description of the opcodes ar [masswerk](https://www.masswerk.at/6502/6502_instruction_set.html)
+///! and the [6502 org website](http://www.6502.org/tutorials/6502opcodes.html)
+///! The MCS6502 is an 8-bit microprocessor. This means that 8 bits of data are transferred or operated upon during each instruction cycle or operation cycle.
+use crate::bus::DataBus;
 
 use self::{addressing::AddressingMode, memory::Ram};
 use addressing::AddressingMode::*;
@@ -13,11 +18,13 @@ pub(crate) mod memory;
 mod opcodes;
 mod util;
 
-const STACK_OFFSET: u16 = 0x100;
-const NMI_VECTOR: usize = 0xfffa;
-const RESET_VECTOR: usize = 0xfffc;
-const IRQ_VECTOR: usize = 0xfffe;
-const BRK_VECTOR: u16 = 0xfffe;
+// SYSTEM VECTORS
+// A vector pointer consists of a program counter high and program counter low value which, under control of
+// the microprocessor, is loaded in the program counter when certain external
+// events occur. The word vector is developed from the fact that the microprocessor directly controls the memory location from which a particular operation
+const NMI_VECTOR: usize = 0xfffa; // NMI (Non-Maskable Interrupt) vector, 16-bit (LB, HB)
+const RESET_VECTOR: usize = 0xfffc; // RES (Reset) vector, 16-bit (LB, HB)
+const IRQ_VECTOR: usize = 0xfffe; // IRQ (Interrupt Request) vector, 16-bit (LB, HB)
 
 // |   |   |   |   |   |   |   |   |
 // | N | V |   | B | D | I | Z | C |     PROCESSOR STATUS REGISTER
@@ -46,12 +53,14 @@ pub(super) mod flags {
     pub const IRQ: u8 = 1 << 2;
     pub const DECIMAL: u8 = 1 << 3;
     pub const BREAK: u8 = 1 << 4;
-    //unused bit pos
+    pub const UNUSED: u8 = 1 < 5;
     pub const OVERFLOW: u8 = 1 << 6;
     pub const NEGATIVE: u8 = 1 << 7;
 }
 
 pub struct Six502 {
+    // the major use for the accumulator is transferring data from memory to the accumulator or from the accumulator to memory.
+    // mathematical amd logical operations can then be done to data inside the accumulator. It is where intermediate values are normally  stored
     a: u8,
     x: u8,
     y: u8,
@@ -59,7 +68,7 @@ pub struct Six502 {
     s: u8,
     cy: u64,
     p: u8, // flags
-    pub bus: Bus,
+    pub bus: DataBus,
 }
 
 impl Six502 {
@@ -72,23 +81,11 @@ impl Six502 {
             s: 0xfd,
             cy: 0,
             p: 0x24,
-            bus: Bus::new(),
+            bus: DataBus::new(),
         }
     }
     pub fn step(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         Ok(())
-    }
-
-    pub(super) fn update_z(&mut self, v: u8) {
-        if v == 0 {
-            self.flag_on(flags::ZERO);
-        }
-    }
-
-    pub(super) fn update_n(&mut self, v: u8) {
-        if v & 0x80 != 0 {
-            self.flag_on(flags::NEGATIVE);
-        }
     }
 }
 

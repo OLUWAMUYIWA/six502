@@ -1,10 +1,12 @@
 use super::addressing;
-use super::{Six502, STACK_OFFSET};
+use super::Six502;
 use crate::bus::{ByteAccess, WordAccess};
 use std::ops::{Add, AddAssign};
 
 impl Six502 {
     // stack helpers
+    const STACK_OFFSET: u16 = 0x100;
+
     pub(super) fn push_u8(&mut self, b: u8) {
         let addr = u16::from(STACK_OFFSET + self.s as u16);
         self.store_u8(addr, b);
@@ -31,9 +33,72 @@ impl Six502 {
         v
     }
 
+    // flag helpers
+    // sets the flag provided in the argument
+    pub(super) fn set_flag(&mut self, flag: u8) {
+        self.p |= flag;
+    }
+
+    pub(super) fn clear_flag(&mut self, flag: u8) {
+        self.p &= !flag // flip flag and bit_and_assign it to self.p
+    }
+
+    // assert_flag is different from set_flag in the sense that if the operation fails to fulfil a condition for changing the flag
+    // the flag in question is reset by the processor anyways, to ensure that the flags ar eoperated by every op that affects them,
+    // hence ensuring that they are in perfect, up-to-date state
+    pub(super) fn assert_flag(&mut self, flag: u8, cond: bool) {
+        if cond {
+            self.set_flag(flag);
+        } else {
+            {
+                self.clear_flag(flag);
+            }
+        }
+    }
+
+    pub(super) fn is_flag_set(&mut self, flag: u8) -> bool {
+        self.p & flag != 0
+    }
+
+    /// The zero flag is set if the accumulator result is 0, otherwise the zero flag is reset
+    pub(super) fn update_z(&mut self, v: u8) {
+        self.assert_flag(flags::ZERO, v == 0);
+    }
+
+    /// The negative flag is set if the accumulator result contains bit 7 on, otherwise the negative flag is reset.
+    pub(super) fn update_n(&mut self, v: u8) {
+        self.assert_flag(flags::NEGATIVE, v & 0x80 != 0);
+    }
+
+    // misc opcode impls
     pub(super) fn nop(&self) -> bool {
         false
     }
+    // comeback
+    // BRK initiates a software interrupt similar to a hardware interrupt (IRQ)
+    pub(super) fn brk(&mut self) -> i8 {
+        0
+    }
+}
+
+/// the overflow flag, used to indicate when a carry from 7 bits has occurred.
+/// NB, here, we use zero indexing in the explanations
+/// The generation of a carry out of the field in signed arithmetic is the same as when adding two 8-bit numbers(unsigned arith), except for the fact that the normal carry flag
+/// does not correctly represent the fact that the field has been exceeded.
+/// this is necessary because in the case of signed aritmetic, addition occurs in the 0-6 bits and not the bit 7
+/// essentially, the 7th bit serves as the carry bit (the 8th is supposed to be, but since the operation only morally considers 0-6, as the 7th is the sign bit)
+/// **So,The overflow flag is set whenever the sign bit (bit 7) is changed as a result of the operation.**
+/// two cases:
+/// 1.     0100 + 0100 = 1000 => overflow flag is turned on.
+/// 2.     1000 + 1000 = 0000 => overflow flag is turned on.
+/// Mixed-sign addition never turns on the overflow flag.
+pub(super) fn check_overflow(a: u8, b: u8, res: u8) -> bool {
+    // res refers to the value of the result after add or sub
+    // a and b are the operands
+    // two conditions anded together
+    // 1. both the result and either of the operands(check cond 2, saying that both operands are signed equally) are inverse of each other
+    // 2: only one of the two operands is **not** negative (bit 7 set). i.e. they're either both pos or neg
+    ((a ^ res) & 0x80 != 0) && ((a ^ b) & 0x80 == 0x00)
 }
 
 // pub fn load_u8(&mut self, addr: u16) -> u8 {
