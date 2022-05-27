@@ -7,6 +7,7 @@ use std::ops::{AddAssign, BitOrAssign, Index, RangeBounds, Shl, Shr};
 
 /// [reference](https://www.masswerk.at/6502/6502_instruction_set.html)
 /// The 6502 has the ability to do indexed addressing, where the X or Y register is used as an extra offset to the address being accessed
+/// The addressing modes of the MCS6500 family can be grouped into two major categories:  Indexed and Non-Indexed Addressing
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
 pub enum AddressingMode {
@@ -55,10 +56,14 @@ impl AddressingMode {
     pub(super) fn load(&self, cpu: &mut Six502) -> (u8, bool) {
         match self {
             AddressingMode::Accumulator => (cpu.a, false),
-            AddressingMode::Absolute => (cpu.load_u8(cpu.load_u16_bump_pc()), false),
+            AddressingMode::Absolute => {
+                let addr = cpu.load_u16_bump_pc();
+                (cpu.load_u8(addr), false)
+            }
             AddressingMode::Abs_X_Idxd => {
                 // with carry
-                let op = cpu.load_u16_bump_pc(); // op means operand
+                let op = cpu.load_u16_bump_pc();
+
                 let lb_op = op as u8;
                 // chec if it'll overflow into the zero page
                 let (_, carry) = lb_op.overflowing_add(cpu.x);
@@ -78,7 +83,11 @@ impl AddressingMode {
             //     let hi = cpu.load_u8((op & 0xff00) | ((op + 1) & 0x00ff));
             //     (u16::from_le_bytes([lo, hi]), false)
             // }
-            AddressingMode::ZP => (cpu.load_u8(cpu.load_u8_bump_pc() as u16), false), //without carry
+            AddressingMode::ZP => {
+                let addr = cpu.load_u8(cpu.pc);
+                cpu.pc = cpu.pc.wrapping_add(2);
+                (cpu.load_u8(addr as u16), false)
+            } //without carry
             AddressingMode::ZP_X_Idxd => (
                 cpu.load_u8((cpu.load_u8_bump_pc().wrapping_add(cpu.x)) as u16),
                 false,

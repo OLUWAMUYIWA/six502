@@ -13,20 +13,6 @@ impl ByteAccess for Six502 {
     }
 }
 
-impl Six502 {
-    pub(super) fn load_u8_bump_pc(&mut self) -> u8 {
-        let addr = self.pc;
-        self.pc = self.pc.wrapping_add(1);
-        self.load_u8(addr)
-    }
-
-    pub(super) fn load_u16_bump_pc(&mut self) -> u16 {
-        let addr = self.pc;
-        self.pc = self.pc.wrapping_add(2);
-        self.load_u16(addr)
-    }
-}
-
 pub struct Ram {
     array: [u8; 0x800],
 }

@@ -4,6 +4,18 @@ use crate::bus::{ByteAccess, WordAccess};
 use std::ops::{Add, AddAssign};
 
 impl Six502 {
+    pub(super) fn load_u8_bump_pc(&mut self) -> u8 {
+        let addr = self.pc;
+        self.pc = self.pc.wrapping_add(1);
+        self.load_u8(addr)
+    }
+
+    pub(super) fn load_u16_bump_pc(&mut self) -> u16 {
+        let addr = self.pc;
+        self.pc = self.pc.wrapping_add(2);
+        self.load_u16(addr)
+    }
+
     // stack helpers
     const STACK_OFFSET: u16 = 0x100;
 
@@ -65,7 +77,7 @@ impl Six502 {
         self.assert_flag(flags::ZERO, v == 0);
     }
 
-    /// The negative flag is set if the accumulator result contains bit 7 on, otherwise the negative flag is reset.
+    /// The negative flag is set if the accumulator result has bit 7 on, otherwise the negative flag is reset.
     pub(super) fn update_n(&mut self, v: u8) {
         self.assert_flag(flags::NEGATIVE, v & 0x80 != 0);
     }
@@ -92,13 +104,14 @@ impl Six502 {
 /// 1.     0100 + 0100 = 1000 => overflow flag is turned on.
 /// 2.     1000 + 1000 = 0000 => overflow flag is turned on.
 /// Mixed-sign addition never turns on the overflow flag.
+/// https://www.quora.com/What-is-the-difference-in-carry-and-overflow-flag-during-binary-multiplication
 pub(super) fn check_overflow(a: u8, b: u8, res: u8) -> bool {
     // res refers to the value of the result after add or sub
     // a and b are the operands
     // two conditions anded together
-    // 1. both the result and either of the operands(check cond 2, saying that both operands are signed equally) are inverse of each other
-    // 2: only one of the two operands is **not** negative (bit 7 set). i.e. they're either both pos or neg
-    ((a ^ res) & 0x80 != 0) && ((a ^ b) & 0x80 == 0x00)
+    // 1: only one of the two operands is **not** negative (bit 7 set). i.e. they're either both pos or neg
+    // 2. both the result and either of the operands are inverse of each other
+    (a ^ res) & (b ^ res) & 0x80 != 0
 }
 
 // pub fn load_u8(&mut self, addr: u16) -> u8 {

@@ -48,13 +48,29 @@ const IRQ_VECTOR: usize = 0xfffe; // IRQ (Interrupt Request) vector, 16-bit (LB,
 // http://users.telenet.be/kim1-6502/6502/proman.html#3
 
 pub(super) mod flags {
+    // In the case of shift and rotate instruction, the carry bit is used as a ninth bit as it is in the arithmetic operation
+    // Operations which affect the carry are ADC, ASL, CLC, CMP, CPX, CPY, LSR, PLP, ROL, RTI, SBC, SEC
     pub const CARRY: u8 = 1 << 0;
+    // automatically set by the microprocessor during any data movement or calculation operation when the 8 bits of results of the operation are 0
+    // uses: interna check by the processor when decrementing, so as not go go below .
+    // affected by:  ADC, AND, ASL, BIT, CMP, CPY, CPX, DEC, DEX, DEY, EOR, INC, INX, INY, LDA, LDX, LDY, LSR, ORA, PLA, PLP, ROL, RTI, SBC, TAX, TAY, TXA, TYA.
     pub const ZERO: u8 = 1 << 1; //set to 1 on equality
+                                 // interrupt disable flag
+                                 // the purpose is to disable the effects of the interrupt request pin
+                                 // IRQ is set by the microprocessor during reset and interrupt commands
+                                 // It is reset by the CLI instruction or the PLP instruction, or at a return from interrupt in which the interrupt disable was reset prior to the interrupt
     pub const IRQ: u8 = 1 << 2;
+    // given that the adder is in charge oarithmetic ops, this flag is useed to specify if the arithmetic should be done as straight binary nums or as decimals
     pub const DECIMAL: u8 = 1 << 3;
+    // set only by the microprocessor and is used to determine during an interrupt service sequence whether or not the interrupt was caused by BRK command or by a real interrupt
     pub const BREAK: u8 = 1 << 4;
+    // expansion bit
     pub const UNUSED: u8 = 1 < 5;
+    // used in signed aritmetic. user who is not using signed arithmetic  can totally ignore this flag
     pub const OVERFLOW: u8 = 1 << 6;
+    // the NEGATIVE flag is set equal to bit 7 of the resulting value in all data movement and data arithmetic
+    // This means, for instance, after a signed add one can determine the sign of the
+    // result by sampling the N flag directly rather than finding a way to isolate bit 7
     pub const NEGATIVE: u8 = 1 << 7;
 }
 
@@ -64,6 +80,12 @@ pub struct Six502 {
     a: u8,
     x: u8,
     y: u8,
+    // the program counter (program address pointer) is used to choose (address) the next memory location and the value which the memory
+    // sends hack is decoded in order to determine what operation the MCS650X is going to perform next
+    // it must always be addressing the operation the user wants to perform next
+    // The microprocessor puts the value of the program counter Onto the address bus, transferring
+    // the 8 bits of data at that memory address into the instruction decode. It then autoincreases by one
+    // to change the sequence of ops, the programmer can only do it by changing the value of the pc
     pc: u16,
     s: u8,
     cy: u64,
@@ -112,6 +134,11 @@ lazy_static! {
 }
 
 impl Six502 {
+    /// The first byte of an instruction is called the OP CODE and is coded to contain the basic operation such as LDA
+    /// then it has the data necessary to allow the microprocessor to interpret the address of the data on which the operation will occur
+    /// the pc will increment after picking up the opcode (executing). it will then pick up the address of data the opcode is to act on
+    /// and incrementing again after. for a full operation, it may incr 1,2,3 or more times
+    /// an instance is LDA absolute addressing. three increments. one for opcode. one for low addr byte. one for high addr byte
     pub fn exec(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         let op = self.load_u8_bump_pc();
         let page_cross = match op {

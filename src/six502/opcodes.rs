@@ -1,3 +1,4 @@
+use super::util::check_overflow;
 use super::{addressing::AddressingMode, flags, Six502};
 use super::{IRQ_VECTOR, NMI_VECTOR, RESET_VECTOR};
 use crate::bus::{ByteAccess, WordAccess};
@@ -52,7 +53,10 @@ impl Six502 {
 
 // comparisons
 impl Six502 {
-    /// cmp: compare accumulator. It sets flags as if a subtraction had been carried out between the accumulator and the operand
+    /// CMP - Compare Memory and Accumulator.
+    /// subtracts the contents of memory from the contents of the accumulator.
+    /// It sets flags as if a subtraction had been carried out between the accumulator and the operand
+    /// Immediate; Zero Page; Zero Page,X; Absolute; Absolute,X; Absolute,Y; (Indirect,X); (Indirect) ,Y
     pub(super) fn cmp(&mut self, mode: AddressingMode) -> bool {
         let (v, cross) = mode.load(self);
         let v = v as u16;
@@ -76,7 +80,6 @@ impl Six502 {
     }
 
     /// cpy: compare accumulator. It sets flags as if a subtraction had been carried out between the y register and the operand
-
     pub(super) fn cpy(&mut self, mode: AddressingMode) -> bool {
         let (v, cross) = mode.load(self);
         let v = v as u16;
@@ -87,12 +90,15 @@ impl Six502 {
         cross
     }
 
+    /// BIT - Test Bits in Memory with Accumulator
+    /// performs an AND between a memory location and the accumulator but does not store the result of the AND into the accumulator.
+    /// affects Z, N, and O
     pub(super) fn bit(&mut self, mode: AddressingMode) -> bool {
         let a = self.a;
         let (b, carry) = mode.load(self);
         self.assert_flag(flags::ZERO, a & b == 0);
         self.assert_flag(flags::NEGATIVE, b & 0x80 != 0);
-        self.assert_flag(flags::OVERFLOW, b & 0x40 != 0);
+        self.assert_flag(flags::OVERFLOW, b & 0b01000000 != 0);
         carry
     }
 }
@@ -179,7 +185,9 @@ impl Six502 {
 
 // logical ops
 impl Six502 {
-    /// and: bitwise AND with accumulator. affects the n and z flags
+    /// The AND instruction performs a bit-by-bit AND operation and stores the result back in the accumulator
+    /// Addressing modes: Immediate; Absolute; Zero Page; Absolute,X; Absolute,Y; Zero Page,X; Indexed Indirect; and Indirect Indexed.
+    // affects z and n flags
     pub(super) fn and(&mut self, mode: AddressingMode) -> bool {
         let (v, cross) = mode.load(self);
         self.a &= v;
@@ -188,6 +196,9 @@ impl Six502 {
         cross
     }
 
+    /// The OR instruction performs a bit-by-bit OR operation and stores the result back in the accumulator
+    /// Addressing modes: Immediate; Absolute; Zero Page; Absolute,X; Absolute,Y; Zero Page,X; Indexed Indirect; and Indirect Indexed.
+    // affects z and n flags
     pub(super) fn ora(&mut self, mode: AddressingMode) -> bool {
         let (v, cross) = mode.load(self);
         self.a |= v;
@@ -195,7 +206,9 @@ impl Six502 {
         self.update_n(self.a);
         cross
     }
-
+    /// The XOR instruction performs a bit-by-bit XOR operation and stores the result back in the accumulator
+    /// Addressing modes: Immediate; Absolute; Zero Page; Absolute,X; Absolute,Y; Zero Page,X; Indexed Indirect; and Indirect Indexed.
+    // affects z and n flags
     pub(super) fn eor(&mut self, mode: AddressingMode) -> bool {
         let (v, cross) = mode.load(self);
         self.a ^= v;
@@ -216,14 +229,16 @@ impl Six502 {
     /// Add Memory to Accumulator with Carry
     /// This instruction adds the value of memory and carry from the previous operation to the value of the accumulator and stores the
     /// result in the accumulator.
-    ///  A + M + C -> A.
+    /// A + M + C -> A.
     /// addressing modes: Immediate; Absolute; Zero Page; Absolute,X; Absolute,Y; Zero Page,X; indexed Indirect; and Indirect Indexed
     /// Example of unsigned arithmetic (Here, A refers to the accumulator, and M refers to the contents of the selected memory)
+    /// ```              
     ///                  0000   1101     13 = (A)*
     ///                  1101   0011    211 = (M)*
     ///                            1      1 = CARRY
     /// Carry  = /0/     1110   0001    225 = (A)
-    pub(super) fn adc(&mut self, mode: AddressingMode) -> u8 {
+    /// ```
+    pub(super) fn adc(&mut self, mode: AddressingMode) -> bool {
         // convert to u16 because we want to be able to know the 9th bit
         let a = u16::from(self.a);
         let (v, cross) = mode.load(self);
@@ -250,28 +265,39 @@ impl Six502 {
         let a = self.a;
         self.update_z(a);
         self.update_n(a);
-        if cross {
-            1
-        } else {
-            0
-        }
+        cross
     }
 
-    /// sbc subtracts a value and the inverse of the carry bit from the accumulator.
+    /// subtracts the value of memory and borrow from the value of the accumulator, using two's complement arithmetic, and stores the result in the accumulator
+    ///  Borrow is defined as the carry flag complemented
+    /// A - M - C -> A.
+    /// It has addressing modes Immediate; Absolute; Zero Page; Absolute,X; Absolute,Y; Zero Page,X; Indexed Indirect; and Indirect Indexed.
+    /// e.g. if if A = 5, and M = 3, and were to find `5-3`, we do: `5 + (-3)`, as follows
+    /// two's compliment conversion first
+    ///```
+    ///          M = 3    0000   0011
+    /// Complemented M    1111   1100
+    ///      Add C = 1              1
+    ///        -M = -3    1111   1101
+    /// then the addition
+    ///           A = 5    0000   0101
+    ///     Add -M = -3    1111   1101
+    ///      Carry = /1/   0000   0010 = +2
+    ///```
     pub(super) fn sbc(&mut self, mode: AddressingMode) -> bool {
         let a = u16::from(self.a);
         let (v, cross) = mode.load(self);
-        let b = v as u16;
-        let res = if self.is_flag_set(flags::CARRY) {
-            // sub has to wrap arround for the carry check to be useful.
-            a.wrapping_sub(b).wrapping_sub(1)
+        // for single precision sub, the programmer has to set the carry to 1 before using the sbc op, so it will be a valid
+        let twos_comp = if self.is_flag_set(flags::CARRY) {
+            u16::from(!v) + 1
         } else {
-            a.wrapping_sub(b)
+            u16::from(!v)
         };
+        let res = a + twos_comp;
+        self.assert_flag(flags::CARRY, res > u16::from(u8::MAX));
 
-        self.assert_flag(flags::CARRY, res & 0x100 == 0);
-
-        self.assert_flag(flags::OVERFLOW, check_overflow(a as u8, b as u8, res as u8));
+        // The overflow flag is set when the result exceeds +127 or -127, otherwise it is reset.
+        self.assert_flag(flags::OVERFLOW, check_overflow(a as u8, v, res as u8));
 
         self.a = res as u8;
         self.update_z(res as u8);
@@ -388,7 +414,9 @@ impl Six502 {
 impl Six502 {
     const BRK_VECTOR: u16 = 0xfffe;
 
-    // jump with absolute addressing
+    /// jump with absolute addressing
+    /// basically loads a new address into the pc unconditionally
+    /// the cpu knows to always load the next instruction address from the pc
     pub(super) fn jmp(&mut self) -> bool {
         self.pc = self.load_u16_bump_pc();
         false
@@ -396,9 +424,9 @@ impl Six502 {
 
     // the other version of jump, but with indirect addressing
     pub(super) fn jmp_indirect(&mut self) -> bool {
-        let op = self.load_u16_bump_pc();
-        let lo = self.load_u8(op);
-        let hi = self.load_u8((op & 0xff00) | ((op + 1) & 0x00ff));
+        let pc = self.load_u16_bump_pc();
+        let lo = self.load_u8(pc);
+        let hi = self.load_u8((pc & 0xff00) | ((pc + 1) & 0x00ff));
         self.pc = u16::from_le_bytes([lo, hi]);
         false
     }
@@ -438,109 +466,118 @@ impl Six502 {
 }
 
 // branches
-// All branches are relative mode and have a length of two bytes
-// branching ops do not affect any flag, but they depend on flag states.
-// Add one if the branch is taken and add one more if the branch crosses a page boundary
-// comeback: change the return type of opcode functions from bool to int because of cases like the above
+// All branches are relative mode and have a length of two bytes. branching ops do not affect any flag, but they depend on flag states.
+// Add add one more cycle if the branch crosses a page boundary
+//  To perform a conditional change of sequence, the microprocessor must interpret the instruction, test the value of a flag, and then change the P counter if the value
+// agrees with the instruction.
+// If the condition is not met, the program counter continues to increment in its normal fashion, i.e. sequentially.
+// Notice that we use relative addressing in branching.
+// This is to reduce the number of bytes needed for branching instructions, in effect reducing cpu load.
+// In relative addressing, we add the value in the memory location following the OPCODE to the program counter.  This allows us to
+// specify a new program counter location with only two bytes, one for the OPCODE and one for the value to be added.
 impl Six502 {
+    pub fn branch(&mut self, flag: u8, cond: bool) -> bool {
+        // relative addressing. load just one byte.
+        // casting the u8 as an i8, and from tere to u16 helps create the twos compliment of the number with length 16bits
+        let v = self.load_u8_bump_pc() as i8 as u16;
+        let old_pc = self.pc;
+        if cond {
+            if self.is_flag_set(flag) {
+                self.pc = self.pc.wrapping_add(v);
+            }
+        } else {
+            if !self.is_flag_set(flag) {
+                self.pc = self.pc.wrapping_add(v);
+            }
+        }
+        if (self.pc & 0xff00) != (old_pc & 0xff00) {
+            // crossed page boundary
+            true
+        } else {
+            false
+        }
+    }
+
+    /// BPL - Branch on Result Plus
     pub(super) fn bpl(&mut self) -> bool {
-        let v = self.load_u8_bump_pc();
-        if !self.is_flag_set(flags::NEGATIVE) {
-            self.pc = self.pc.wrapping_add(v as u16);
-        }
-        false
+        self.branch(flags::NEGATIVE, false)
     }
 
+    ///  BMI - Branch on Result Minus
     pub(super) fn bmi(&mut self) -> bool {
-        let v = self.load_u8_bump_pc();
-        if self.is_flag_set(flags::NEGATIVE) {
-            self.pc = self.pc.wrapping_add(v as u16);
-        }
-        false
+        self.branch(flags::NEGATIVE, true)
     }
 
+    /// BVC - Branch on Overflow Clear
     pub(super) fn bvc(&mut self) -> bool {
-        let v = self.load_u8_bump_pc();
-        if !self.is_flag_set(flags::OVERFLOW) {
-            self.pc = self.pc.wrapping_add(v as u16);
-        }
-        false
+        self.branch(flags::OVERFLOW, false)
     }
 
+    /// BVS - Branch on Overflow Set
     pub(super) fn bvs(&mut self) -> bool {
-        let v = self.load_u8_bump_pc();
-        if self.is_flag_set(flags::OVERFLOW) {
-            self.pc = self.pc.wrapping_add(v as u16);
-        }
-        false
+        self.branch(flags::OVERFLOW, true)
     }
 
+    ///  BCC - Branch on Carry Clear
     pub(super) fn bcc(&mut self) -> bool {
-        let v = self.load_u8_bump_pc();
-        if !self.is_flag_set(flags::CARRY) {
-            self.pc = self.pc.wrapping_add(v as u16);
-        }
-        false
+        self.branch(flags::CARRY, false)
     }
 
+    /// BCS - Branch on Carry Set
     pub(super) fn bcs(&mut self) -> bool {
-        let v = self.load_u8_bump_pc();
-        if self.is_flag_set(flags::CARRY) {
-            self.pc = self.pc.wrapping_add(v as u16);
-        }
-        false
+        self.branch(flags::CARRY, true)
     }
 
+    //  BNE - Branch on Result Not Zero
     pub(super) fn bne(&mut self) -> bool {
-        let v = self.load_u8_bump_pc();
-
-        if !self.is_flag_set(flags::ZERO) {
-            self.pc = self.pc.wrapping_add(v as u16);
-        }
-        false
+        self.branch(flags::ZERO, false)
     }
 
+    /// BEQ - Branch on Result Zero
     pub(super) fn beq(&mut self) -> bool {
-        let v = self.load_u8_bump_pc();
-
-        if self.is_flag_set(flags::ZERO) {
-            self.pc = self.pc.wrapping_add(v as u16);
-        }
-        false
+        self.branch(flags::ZERO, true)
     }
 }
 
 // status flag changes
+// none of these ops have side effect of affecting other flags
 impl Six502 {
+    /// resets the carry flag to a 0
     pub(super) fn clc(&mut self) -> bool {
         self.clear_flag(flags::CARRY);
         false
     }
+
+    /// This instruction initializes the carry flag to a 1
     pub(super) fn sec(&mut self) -> bool {
         self.set_flag(flags::CARRY);
         false
     }
+    /// cli resets interrupt disable to a 0
     pub(super) fn cli(&mut self) -> bool {
         self.clear_flag(flags::IRQ);
         false
     }
+    /// sei sets the interrupt disable flag (IRQ) to a 1
     pub(super) fn sei(&mut self) -> bool {
         self.set_flag(flags::IRQ);
         false
     }
+    /// clears the overflow flag to a 0
+    /// used in conjunction with the set overflow pin which can change the state of the overflow flag with an external signal
+    // comeback to implement pins, incl this set overflow pin
     pub(super) fn clv(&mut self) -> bool {
         self.clear_flag(flags::OVERFLOW);
         false
     }
+    // cld resets the decimal mode flag D to a 1
     pub(super) fn cld(&mut self) -> bool {
         self.clear_flag(flags::DECIMAL);
         false
     }
+    // sed sets the decimal mode flag D to a 1
     pub(super) fn sed(&mut self) -> bool {
         self.set_flag(flags::DECIMAL);
         false
     }
 }
-
-// system functions
-impl Six502 {}
