@@ -1,7 +1,10 @@
 use super::addressing;
+use super::flags;
 use super::Six502;
 use crate::bus::{ByteAccess, WordAccess};
 use std::ops::{Add, AddAssign};
+
+const STACK_OFFSET: u16 = 0x0100;
 
 impl Six502 {
     pub(super) fn load_u8_bump_pc(&mut self) -> u8 {
@@ -17,7 +20,6 @@ impl Six502 {
     }
 
     // stack helpers
-    const STACK_OFFSET: u16 = 0x100;
 
     pub(super) fn push_u8(&mut self, b: u8) {
         let addr = u16::from(STACK_OFFSET + self.s as u16);
@@ -85,11 +87,6 @@ impl Six502 {
     // misc opcode impls
     pub(super) fn nop(&self) -> bool {
         false
-    }
-    // comeback
-    // BRK initiates a software interrupt similar to a hardware interrupt (IRQ)
-    pub(super) fn brk(&mut self) -> i8 {
-        0
     }
 }
 

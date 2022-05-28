@@ -8,6 +8,8 @@ use std::ops::{AddAssign, BitOrAssign, Index, RangeBounds, Shl, Shr};
 /// [reference](https://www.masswerk.at/6502/6502_instruction_set.html)
 /// The 6502 has the ability to do indexed addressing, where the X or Y register is used as an extra offset to the address being accessed
 /// The addressing modes of the MCS6500 family can be grouped into two major categories:  Indexed and Non-Indexed Addressing
+/// Implied addressing is not encoded here because the opcode usually contains the source and the dest for the op (e.g. tsx). morally, there is no need for loading any value
+
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
 pub enum AddressingMode {

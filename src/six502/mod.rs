@@ -8,7 +8,6 @@ use crate::bus::DataBus;
 use self::{addressing::AddressingMode, memory::Ram};
 use addressing::AddressingMode::*;
 use bitflags::*;
-use lazy_static::lazy_static;
 use std::collections::HashMap;
 
 pub(crate) mod addressing;
@@ -65,7 +64,7 @@ pub(super) mod flags {
     // set only by the microprocessor and is used to determine during an interrupt service sequence whether or not the interrupt was caused by BRK command or by a real interrupt
     pub const BREAK: u8 = 1 << 4;
     // expansion bit
-    pub const UNUSED: u8 = 1 < 5;
+    pub const UNUSED: u8 = 1 << 5;
     // used in signed aritmetic. user who is not using signed arithmetic  can totally ignore this flag
     pub const OVERFLOW: u8 = 1 << 6;
     // the NEGATIVE flag is set equal to bit 7 of the resulting value in all data movement and data arithmetic
@@ -90,6 +89,7 @@ pub struct Six502 {
     s: u8,
     cy: u64,
     p: u8, // flags
+    // Sixteen bits of address allow access to 65,536 memory locations, each of which, in the MCS650X family, consists of 8 bits of data
     pub bus: DataBus,
 }
 
@@ -111,27 +111,21 @@ impl Six502 {
     }
 }
 
-lazy_static! {
-    static ref CYCLES: [u8; 256] = [
-        //       0, 1, 2, 3, 4, 5, 6, 7, 8, 9, A, B, C, D, E, F
-        /*0*/    7, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2, 2, 4, 4, 6, 6,
-        /*1*/    2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
-        /*2*/    6, 6, 2, 8, 3, 3, 5, 5, 4, 2, 2, 2, 4, 4, 6, 6,
-        /*3*/    2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
-        /*4*/    6, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2, 2, 3, 4, 6, 6,
-        /*5*/    2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
-        /*6*/    6, 6, 2, 8, 3, 3, 5, 5, 4, 2, 2, 2, 5, 4, 6, 6,
-        /*7*/    2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
-        /*8*/    2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4,
-        /*9*/    2, 6, 2, 6, 4, 4, 4, 4, 2, 5, 2, 5, 5, 5, 5, 5,
-        /*A*/    2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4,
-        /*B*/    2, 5, 2, 5, 4, 4, 4, 4, 2, 4, 2, 4, 4, 4, 4, 4,
-        /*C*/    2, 6, 2, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6,
-        /*D*/    2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
-        /*E*/    2, 6, 3, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6,
-        /*F*/    2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
-    ];
-}
+static CYCLES: [u8; 256] = [
+    //       0, 1, 2, 3, 4, 5, 6, 7, 8, 9, A, B, C, D, E, F
+    /*0*/ 7, 6, 2, 8, 3, 3, 5,
+    5, 3, 2, 2, 2, 4, 4, 6, 6, /*1*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+    /*2*/ 6, 6, 2, 8, 3, 3, 5, 5, 4, 2, 2, 2, 4, 4, 6, 6, /*3*/ 2, 5, 2, 8, 4, 4, 6, 6,
+    2, 4, 2, 7, 4, 4, 7, 7, /*4*/ 6, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2, 2, 3, 4, 6, 6,
+    /*5*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7, /*6*/ 6, 6, 2, 8, 3, 3, 5, 5,
+    4, 2, 2, 2, 5, 4, 6, 6, /*7*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+    /*8*/ 2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4, /*9*/ 2, 6, 2, 6, 4, 4, 4, 4,
+    2, 5, 2, 5, 5, 5, 5, 5, /*A*/ 2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4,
+    /*B*/ 2, 5, 2, 5, 4, 4, 4, 4, 2, 4, 2, 4, 4, 4, 4, 4, /*C*/ 2, 6, 2, 8, 3, 3, 5, 5,
+    2, 2, 2, 2, 4, 4, 6, 6, /*D*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+    /*E*/ 2, 6, 3, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6, /*F*/ 2, 5, 2, 8, 4, 4, 6, 6,
+    2, 4, 2, 7, 4, 4, 7, 7,
+];
 
 impl Six502 {
     /// The first byte of an instruction is called the OP CODE and is coded to contain the basic operation such as LDA

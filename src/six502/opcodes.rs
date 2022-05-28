@@ -4,10 +4,10 @@ use super::{IRQ_VECTOR, NMI_VECTOR, RESET_VECTOR};
 use crate::bus::{ByteAccess, WordAccess};
 use std::ops::{BitAnd, BitOr, BitOrAssign, Shl, Shr};
 
+const BRK: u16 = 0xfffe;
+
 // load/store ops
 impl Six502 {
-    const BRK: u16 = 0xfffe;
-
     /// load accumulator with memory. data is transferred from memory into the accumulator
     /// zero flag is set if the acc is zero, otherwise resets
     //  negative flag is set if bit 7 of the accumulator is a 1, otherwise resets
@@ -445,6 +445,8 @@ impl Six502 {
         false
     }
 
+    // comeback
+    // BRK initiates a software interrupt similar to a hardware interrupt (IRQ)
     pub(super) fn brk(&mut self) -> bool {
         let pc = self.pc;
         self.push_u16(pc + 1);

@@ -8,8 +8,7 @@ impl<'a> DisAsm<'a> {
     }
 }
 
-lazy_static::lazy_static! {
-    pub static ref INSTRUCTIONS: [&'static str; 256] = [
+    pub static  INSTRUCTIONS: [&'static str; 256] = [
     "BRK", "ORA izx", "*KIL", "*SLO izx", "*NOP zp", "ORA zp", "ASL zp", "*SLO zp", "PHP", "ORA imm", "ASL", "*ANC imm", "*NOP abs", "ORA abs", "ASL abs", "*SLO abs", "BPL rel",
     "ORA izy", "*KIL", "*SLO izy", "*NOP zpx", "ORA zpx", "ASL zpx", "*SLO zpx", "CLC", "ORA aby", "*NOP", "*SLO aby", "*NOP abx", "ORA abx", "ASL abx", "*SLO abx", "JSR abs", "AND izx", "*KIL",
     "*RLA izx", "BIT zp", "AND zp", "ROL zp", "*RLA zp", "PLP", "AND imm", "ROL", "*ANC imm", "BIT abs", "AND abs", "ROL abs", "*RLA abs", "BMI rel", "AND izy", "*KIL", "*RLA izy",
@@ -26,4 +25,3 @@ lazy_static::lazy_static! {
     "CPX imm", "SBC izx", "*NOP imm", "*ISC izx", "CPX zp", "SBC zp", "INC zp", "*ISC zp", "INX", "SBC imm", "NOP", "*SBC imm", "CPX abs", "SBC abs", "INC abs", "*ISC abs", "BEQ rel",
     "SBC izy", "*KIL", "*ISC izy", "*NOP zpx", "SBC zpx", "INC zpx", "*ISC zpx", "SED", "SBC aby", "*NOP", "*ISC aby", "*NOP abx", "SBC abx", "INC abx", "*ISC abx",
     ];
-}
