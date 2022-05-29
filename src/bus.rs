@@ -6,26 +6,26 @@ use crate::{apu::Apu, ctrl::Joypad, ppu::Ppu, rom::Rom};
 /// ByteAccess handles the loading and storage of u8 values. An implementor is an addressable member of the NES
 /// The memory address can be regarded as 256 pages (each page defined by the high order byte) of 256 memory locations (bytes) per page.
 pub trait ByteAccess {
-    fn load_u8(&self, addr: u16) -> u8;
+    fn load_u8(&mut self, addr: u16) -> u8;
     fn store_u8(&mut self, addr: u16, v: u8);
 }
 
 pub trait WordAccess {
-    fn load_u16(&self, addr: u16) -> u16;
+    fn load_u16(&mut self, addr: u16) -> u16;
     // loads the word from a u8 address. no carries to the other page
-    fn load_u16_no_carry(&self, addr: u8) -> u16;
+    fn load_u16_no_carry(&mut self, addr: u8) -> u16;
     fn store_u16(&mut self, addr: u16, v: u16);
 }
 
 // blanket implementation of Word Access for every item that implements `ByteAccess`
 impl<T: ByteAccess> WordAccess for T {
     // 6502 arranges integers in little-endian order. lower bytes first
-    fn load_u16(&self, addr: u16) -> u16 {
+    fn load_u16(&mut self, addr: u16) -> u16 {
         u16::from_le_bytes([self.load_u8(addr), self.load_u8(addr + 1)])
     }
 
     // unlike `load_u16`, `load_u16_no_carry` is used by te `Indexed Indirect` and the `Indirect Indexed` addressing modes
-    fn load_u16_no_carry(&self, addr: u8) -> u16 {
+    fn load_u16_no_carry(&mut self, addr: u8) -> u16 {
         u16::from_le_bytes([self.load_u8(addr as u16), self.load_u8(addr as u16)])
     }
 
@@ -43,11 +43,11 @@ impl<T: ByteAccess> WordAccess for T {
 pub struct DataBus {
     pub ram: Ram,
     pub rom: Rom,
-    pub apu: Apu,
-    pub ppu: Ppu,
+    pub(crate) apu: Apu,
+    pub(crate) ppu: Ppu,
     pub joypad_1: Joypad,
     pub joypad_2: Joypad,
-    pub interrupt: Interrupt,
+    pub(crate) interrupt: Interrupt,
     pub cycles: u64,
 }
 
@@ -80,7 +80,7 @@ impl DataBus {
 // | ---------------------------------------------------------
 
 impl ByteAccess for DataBus {
-    fn load_u8(&self, addr: u16) -> u8 {
+    fn load_u8(&mut self, addr: u16) -> u8 {
         match addr {
             0x0000..=0x1FFF => self.ram.load_u8(addr),
             0x2000..=0x3FFF => self.ppu.load_u8(addr), //comeback to check bounds

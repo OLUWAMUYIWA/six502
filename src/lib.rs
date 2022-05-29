@@ -1,10 +1,9 @@
 #![allow(unused_imports, dead_code)]
-mod apu;
+pub(crate) mod apu;
 mod bus;
-mod common;
 mod ctrl;
 mod nes;
-mod ppu;
+pub(crate) mod ppu;
 mod rom;
 mod six502;
 

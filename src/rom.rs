@@ -54,7 +54,7 @@ bitflags! {
         const V_MIRRORING           = 0b00000001;
         const BATTERY_BACKED_RAM    = 0b00000010;
         const TRAINER_EXISTS        = 0b00000100;
-        const FOUR_SCREEN        = 0b00001000;
+        const FOUR_SCREEN           = 0b00001000;
     }
 }
 
@@ -73,13 +73,14 @@ impl Rom {
         todo!()
     }
 
-    fn load_hdr(input: &[u8]) -> IResult<&[u8], Rom> {
-        let (input, _) = tag(b"NES\x1a".into())(input)?;
+    fn load_hdr(input: &[u8]) -> IResult<&[u8], Hdr> {
+        let (input, _) = tag("NES\x1a")(input)?;
         let (input, prog_len) = be_u8(input)?;
         let (input, chr_len) = be_u8(input)?;
         let (input, flag_6) = be_u8(input)?;
-        let flags_6 = Flags6::from_bits(0b000001111 & flag_6)
-            .ok_or(format!("Could not get flags from flag_6"))?;
+        let flags_6 = Flags6::from_bits(0b000001111 & flag_6).ok_or_else(|| Err::Failure(nom::error::Error::new(input, ErrorKind::Fail)))?;
+
+            // .ok_or_else(|| (input, format!("Could not get flags from flag_6")))?;
 
         let (input, flag_7) = be_u8(input)?;
         if flag_7 & 0x0C == 0x08 {
@@ -98,26 +99,26 @@ impl Rom {
             TVFormat::NTSC
         };
 
-        let (input, trail) = take(6)(input)?;
+        let (input, trail) = take(6usize)(input)?;
         if b"\x00\x00\x00\x00\x00" != trail {
-            return Err(Err::Failure((input, ErrorKind::Fail)));
+            return Err(Err::Failure( nom::error::Error::new(input, ErrorKind::Fail)));
         }
 
-        Ok(Hdr {
+        Ok((input, Hdr {
             prg_rom_size: 16384 * prog_len as usize,
             chr_rom_size: 8192 * chr_len as usize,
             flags_6,
             prg_ram_size: 8192 * len_ram_banks as usize,
             tv_format,
             mapper,
-        })
+        }))
     }
 
-    fn load_body<'a>(hdr: &Hdr, input: &'a [u8]) -> IResult<&'a [u8], Rom> {
+    fn load_body<'a>(hdr: Hdr, input: &'a [u8]) -> IResult<&'a [u8], Rom> {
         let (input, trainer) =
-            cond(hdr.flags_6.contains(Flags6::TRAINER_EXISTS), take(512))(input)?;
-        let (input, prg_rom) = take(16384 * hdr.prog_len as usize)(input)?;
-        let (input, chr_rom) = take(8192 * hdr.chr_len as usize)(input)?;
+            cond(hdr.flags_6.contains(Flags6::TRAINER_EXISTS), take(512usize))(input)?;
+        let (input, prg_rom) = take(16384usize * hdr.prg_rom_size as usize)(input)?;
+        let (input, chr_rom) = take(8192usize * hdr.chr_rom_size as usize)(input)?;
         Ok((
             input,
             Rom {
@@ -129,20 +130,20 @@ impl Rom {
         ))
     }
 
-    pub fn load_rom(rdr: impl Read) -> Result<Rom, Box<dyn std::error::Error>> {
+    pub fn load_rom(rdr: &mut impl Read) -> Result<Rom, Box<dyn std::error::Error>> {
         let mut h_buf = [0u8; 16];
         rdr.read_exact(&mut h_buf)?;
-        if let IResult::Ok((input, hdr)) = Rom::load_hdr(&h_buf) {
-            let mut b_buf = Vec::<u8>::with_capacity();
+        if let IResult::Ok((_, hdr)) = Rom::load_hdr(&h_buf) {
+            let mut b_buf = Vec::<u8>::with_capacity(8 * 1024);
             rdr.read_to_end(&mut b_buf)?;
-            match Rom::load_body(&hdr, &b_buf) {
+            match Rom::load_body(hdr, &b_buf) {
                 IResult::Ok((input, rom)) => Ok(rom),
-                IResult::Err(err) => Err(Box::new(err)),
+                IResult::Err(_) => Err("could not load body".into()),
             }
         } else {
-            Err(Box::<&'static str>::new(
+            Err(
                 format!("Could not load header").into(),
-            ))
+            )
         }
     }
 

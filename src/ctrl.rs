@@ -41,7 +41,7 @@ impl Joypad {
         }
     }
 
-    pub(crate) fn load_u8(&self) -> u8 {
+    pub(crate) fn load_u8(&mut self) -> u8 {
         if self.index > 7 {
             return 1;
         }

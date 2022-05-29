@@ -90,24 +90,30 @@ impl AddressingMode {
                 cpu.pc = cpu.pc.wrapping_add(2);
                 (cpu.load_u8(addr as u16), false)
             } //without carry
-            AddressingMode::ZP_X_Idxd => (
-                cpu.load_u8((cpu.load_u8_bump_pc().wrapping_add(cpu.x)) as u16),
+            AddressingMode::ZP_X_Idxd => {
+                let addr = cpu.load_u8_bump_pc();
+                (
+                cpu.load_u8((addr.wrapping_add(cpu.x)) as u16),
+                false
+            ) }, //without carry. that's why we add the `u8`s before converting to `u16`, so it won't carry into the high-byte
+            AddressingMode::ZP_Y_Idxd =>{ 
+                let addr = cpu.load_u8_bump_pc();
+                (
+                cpu.load_u8((addr.wrapping_add(cpu.y)) as u16),
                 false,
-            ), //without carry. that's why we add the `u8`s before converting to `u16`, so it won't carry into the high-byte
-            AddressingMode::ZP_Y_Idxd => (
-                cpu.load_u8((cpu.load_u8_bump_pc().wrapping_add(cpu.y)) as u16),
-                false,
-            ), //without carry
+            ) }, //without carry
             AddressingMode::XIdxd_Indirect => {
                 let v = cpu.load_u8_bump_pc();
                 let addr = cpu.x + v;
-                (cpu.load_u8(cpu.load_u16_no_carry(addr)), false) // without carry
+                let addr = cpu.load_u16_no_carry(addr);
+                (cpu.load_u8(addr), false) // without carry
             }
             AddressingMode::Indirect_Y_Idxd => {
                 let y = cpu.y;
                 let v = cpu.load_u8_bump_pc();
                 // (cpu.load_u8(v as u16) as u16 | (cpu.load_u8((v + 1) as u16) as u16) << 8)
-                (cpu.load_u8(cpu.load_u16_no_carry(v) + y as u16), false) //with carry
+                let addr = cpu.load_u16_no_carry(v);
+                (cpu.load_u8(addr + y as u16), false) //with carry
             }
         }
     }
@@ -119,7 +125,8 @@ impl AddressingMode {
                 false
             }
             AddressingMode::Absolute => {
-                cpu.store_u8(cpu.load_u16_bump_pc(), v);
+                let addr = cpu.load_u16_bump_pc();
+                cpu.store_u8(addr, v);
                 false
             }
 
@@ -127,43 +134,50 @@ impl AddressingMode {
                 let op = cpu.load_u16_bump_pc();
                 let lb_op = op as u8;
                 let (_, carry) = lb_op.overflowing_add(cpu.x);
-                cpu.store_u8(cpu.load_u16_bump_pc() + (cpu.x as u16), v);
+                let addr = cpu.load_u16_bump_pc();
+                cpu.store_u8(addr + (cpu.x as u16), v);
                 carry
             }
             AddressingMode::Abs_Y_Idxd => {
                 let op = cpu.load_u16_bump_pc();
                 let lb_op = op as u8; // truncates
                 let (_, carry) = lb_op.overflowing_add(cpu.y);
-                cpu.store_u8(cpu.load_u16_bump_pc() + (cpu.y as u16), v);
+                let addr = cpu.load_u16_bump_pc();
+                cpu.store_u8( addr + (cpu.y as u16), v);
                 carry
             }
 
             AddressingMode::Immediate => false, // do nothing
             // AddressingMode::Indirect => false,
             AddressingMode::ZP => {
-                cpu.store_u8(cpu.load_u8_bump_pc() as u16, v);
+                let addr = cpu.load_u8_bump_pc();
+                cpu.store_u8(addr as u16, v);
                 false
             }
 
             AddressingMode::ZP_X_Idxd => {
-                cpu.store_u8((cpu.load_u8_bump_pc() + cpu.x) as u16, v);
+                let addr = cpu.load_u8_bump_pc();
+                cpu.store_u8((addr + cpu.x) as u16, v);
                 false
             }
             AddressingMode::ZP_Y_Idxd => {
-                cpu.store_u8((cpu.load_u8_bump_pc() + cpu.y) as u16, v);
+                let addr = cpu.load_u8_bump_pc();
+                cpu.store_u8((addr + cpu.y) as u16, v);
                 false
             }
 
             AddressingMode::XIdxd_Indirect => {
                 let val = cpu.load_u8_bump_pc();
                 let addr = cpu.x.wrapping_add(val);
-                cpu.store_u8(cpu.load_u16_no_carry(addr), v);
+                let addr =cpu.load_u16_no_carry(addr);
+                cpu.store_u8(addr, v);
                 false
             }
             AddressingMode::Indirect_Y_Idxd => {
                 let v = cpu.load_u8_bump_pc();
                 let y = cpu.y;
-                cpu.store_u8(cpu.load_u16_no_carry(v) + y as u16, v);
+                let addr = cpu.load_u16_no_carry(v);
+                cpu.store_u8(addr + y as u16, v);
                 false
             }
         }
