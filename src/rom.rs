@@ -1,7 +1,8 @@
 use bitflags::bitflags;
+use sdl2::Error;
 use std::{
     fs::ReadDir,
-    io::{self, Read},
+    io::{self, Read}, ops::{Deref, DerefMut, Index},
 };
 
 use nom::{
@@ -16,8 +17,8 @@ use nom::{
 pub struct Rom {
     hdr: Hdr,
     trainer: Option<Vec<u8>>,
-    prg_rom: Vec<u8>, // code. (16384 * x bytes)
-    chr_rom: Vec<u8>, // (8192 * y bytes) character rom. used by the ppu
+    pub(crate) prg_rom: PagedData, // code. (16384 * x bytes)
+    pub(crate) chr_rom: PagedData, // (8192 * y bytes) character rom. used by the ppu
 }
 
 pub struct Hdr {
@@ -124,8 +125,8 @@ impl Rom {
             Rom {
                 hdr,
                 trainer: trainer.map(|t| t.to_vec()),
-                prg_rom: prg_rom.to_vec(),
-                chr_rom: chr_rom.to_vec(),
+                prg_rom: PagedData::new(prg_rom.to_vec()),
+                chr_rom: PagedData::new(chr_rom.to_vec()),
             },
         ))
     }
@@ -155,3 +156,86 @@ impl Rom {
         todo!()
     }
 }
+
+pub(crate) struct PagedData {
+    v: Vec<u8>,
+}
+
+impl Deref for PagedData {
+    type Target = Vec<u8>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.v
+    }
+    
+}
+
+impl DerefMut for PagedData {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.v
+    }
+}
+
+#[derive(Clone, Copy)]
+pub(crate) enum Kb {
+    One = 0x400,
+    Four = 0x1000,
+    Eight = 0x2000,
+    Sixteen = 0x4000,
+}
+
+pub(crate) enum Page {
+    Zero{size: Kb},
+    Last{size: Kb},
+    Nth{n: usize, size: Kb},
+    RNth{n: usize, size: Kb},
+}
+
+impl PagedData {
+    pub(crate) fn new(v: Vec<u8>) -> Self {
+        Self {
+            v,
+        }
+    }
+
+    pub(crate) fn load_u8(&self, pos: u16, page: Page) -> Result<u8, Box<dyn std::error::Error>> {
+        let index = self.nth(pos, page)?;
+        Ok(self[index])
+    }
+
+    pub(crate) fn store_u8(&mut self, pos: u16, page: Page, v: u8) -> Result<(), Box<dyn std::error::Error>> {
+        let index = self.nth(pos, page)?;
+        self[index] = v;
+        Ok(())
+    }    
+    fn nth(&self, pos: u16, page: Page) -> Result<usize, Box<dyn std::error::Error>> {
+        
+        match page {
+            Page::Zero { size } => {
+                self.nth(pos, Page::Nth{n: 0, size} )
+            },
+            Page::Last { size } => {
+                let num_pages =  self.v.len() / (size as usize);
+                self.nth(pos, Page::Nth{n: num_pages-1, size} )
+            },
+            Page::Nth { n, size } => {
+                if self.v.len() % size as usize != 0 {
+                    return Err(format!("paged data size ought to be a multiple of size but isn't. ").into());
+                }
+                let num_pages =  self.v.len() / (size as usize); // number of pages in paged data
+                if n > (num_pages - 1) as usize {
+                    return Err("page out of bounds".into());
+                }
+                if pos as usize > (size) as usize { // if pos exceeds the size of the page its out of bounds
+                    return  Err("pos out of bounds".into());
+                }
+                Ok((n * size as usize ) + pos as usize)
+            },
+            Page::RNth { n, size } => {
+                let num_pages =  self.v.len() / (size as usize);
+                self.nth(pos, Page::Nth{n: num_pages-1-n, size}, )
+            },
+        }
+    }
+}
+

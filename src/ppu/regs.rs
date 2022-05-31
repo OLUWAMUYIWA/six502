@@ -17,17 +17,25 @@ use std::ops::{Deref, DerefMut};
 // | $4014   | OAM_DMA    | write          | Sprite Page DMA Transfer                            |
 // -----------------------------------------------------------------------------------------------
 
+/// [Details](https://www.nesdev.org/wiki/PPU_registers)
+/// PPU Registers
+pub(crate) struct Registers {
+
+}
 /// ```
+/// 0x2000
 /// 7654 3210
 /// VPHB SINN
 /// ```
 /// NMI enable (V), PPU master/slave (P), sprite height (H),
 /// background tile select (B), sprite tile select (S), increment mode (I), nametable select (NN)
+/// Access: write
 struct PpuCtrl {
     v: u8,
 }
 
 /// ```
+/// 0x2001
 /// 7654 3210
 /// BGRs bMmG
 /// ```
@@ -38,6 +46,7 @@ struct PpuMask {
 }
 
 /// ```
+/// 0x2002
 /// 7654 3210
 /// VSO- ----
 /// ```
@@ -47,6 +56,7 @@ struct PpuStatus {
 }
 
 /// ```
+/// 0x2003
 /// 7654 3210
 /// aaaa aaaa
 /// ```
@@ -56,6 +66,7 @@ struct OamAddr {
 }
 
 /// ```
+/// 0x2004
 /// 7654 3210
 /// dddd dddd
 /// ```
@@ -65,6 +76,7 @@ struct OamData {
 }
 
 /// ```
+/// 0x2005
 /// 7654 3210
 /// xxxx xxxx
 /// ```
@@ -73,16 +85,30 @@ struct PpuScroll {
     v: u8,
 }
 
+/// ```
+/// 0x2006
+/// 7654 3210
 /// aaaa aaaa
+/// ```
 /// PPU read/write address (two writes: most significant byte, least significant byte)
 struct PpuAddr {
     v: u8,
 }
-
+/// ```
+/// 0x2007
+/// 7654 3210
+/// dddd dddd
+/// ```
+/// PPU data read/write 
 struct PpuData {
     v: u8,
 }
-
+/// ```
+/// 0x4014
+/// 7654 3210
+/// aaaa aaaa
+/// ```
+/// OAM DMA high address
 struct OamDma {
     v: u8,
 }

@@ -1,6 +1,7 @@
 use crate::bus::ByteAccess;
 
 mod regs;
+mod vram;
 
 pub(crate) struct Ppu {}
 
