@@ -24,26 +24,26 @@ impl Six502 {
     pub(super) fn push_u8(&mut self, b: u8) {
         let addr = u16::from(STACK_OFFSET + self.s as u16);
         self.store_u8(addr, b);
-        self.s.wrapping_sub(1);
+        self.s = self.s.wrapping_sub(1);
     }
 
     pub(super) fn pull_u8(&mut self) -> u8 {
         let addr = u16::from(STACK_OFFSET + self.s as u16) + 1;
         let v = self.load_u8(addr);
-        self.s.wrapping_add(1);
+        self.s = self.s.wrapping_add(1);
         v
     }
 
     pub(super) fn push_u16(&mut self, w: u16) {
         let addr = u16::from(STACK_OFFSET + (self.s - 1) as u16);
         self.store_u16(addr, w);
-        self.s.wrapping_sub(2);
+        self.s = self.s.wrapping_sub(2);
     }
 
     pub(super) fn pull_u16(&mut self) -> u16 {
         let addr = u16::from(STACK_OFFSET + self.s as u16) + 1;
         let v = self.load_u16(addr);
-        self.s.wrapping_add(2);
+        self.s = self.s.wrapping_add(2);
         v
     }
 
@@ -85,8 +85,8 @@ impl Six502 {
     }
 
     // misc opcode impls
-    pub(super) fn nop(&self) -> bool {
-        false
+    pub(super) fn nop(&self) -> u8 {
+        0
     }
 }
 
@@ -206,3 +206,12 @@ pub(super) fn check_overflow(a: u8, b: u8, res: u8) -> bool {
 //     TXS = 0x9a, // transfer x to stack pointer
 //     TYA = 0x98, // transfer y to accumulator
 // }
+
+
+pub(super) fn num_cy(b: bool) -> u8 {
+    if b {
+        1
+    } else {
+        0
+    }
+}

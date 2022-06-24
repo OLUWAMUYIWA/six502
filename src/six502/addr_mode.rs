@@ -89,8 +89,7 @@ impl AddressingMode {
             //     (u16::from_le_bytes([lo, hi]), false)
             // }
             AddressingMode::ZP => {
-                let addr = cpu.load_u8(cpu.pc);
-                cpu.pc = cpu.pc.wrapping_add(2);
+                let addr = cpu.load_u8_bump_pc();
                 (cpu.load_u8(addr as u16), false)
             } //without carry
             AddressingMode::ZP_X_Idxd => {
