@@ -26,7 +26,7 @@ pub enum AddressingMode {
     // OPC $LLHH,Y: operand is address; effective address is address incremented by Y with carry
     Abs_Y_Idxd,
 
-    // OPC #$BB: operand is the byte BB, as is
+    // OPC #$BB: operand is the byte BB, as is. 
     Immediate,
 
     // OPC: operand is implied, not specified inline
@@ -50,6 +50,9 @@ pub enum AddressingMode {
 
     // OPC $LL,Y    operand is zeropage address; effective address is address incremented by Y without carry
     ZP_Y_Idxd,
+
+    // Omitted because no computation is reqd to get the address. The instruction is just one byte. Addressin is implicit
+    // Implied
 }
 
 impl AddressingMode {
@@ -67,7 +70,7 @@ impl AddressingMode {
                 let op = cpu.load_u16_bump_pc();
 
                 let lb_op = op as u8;
-                // chec if it'll overflow into the zero page
+                // check if it'll overflow into the zero page
                 let (_, carry) = lb_op.overflowing_add(cpu.x);
                 (cpu.load_u8(op + (cpu.x as u16)), carry)
             }

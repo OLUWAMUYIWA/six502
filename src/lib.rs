@@ -6,7 +6,9 @@ mod nes;
 pub(crate) mod ppu;
 mod rom;
 mod six502;
+mod io;
 pub(crate) mod mapper;
+
 
 macro_rules! impl_deref_mut {
 	($($struct_name:ident {$field:ident}),+ $(,)?) => {

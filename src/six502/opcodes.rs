@@ -1,5 +1,5 @@
 use super::util::check_overflow;
-use super::{addressing::AddressingMode, flags, Six502};
+use super::{addr_mode::AddressingMode, flags, Six502};
 use super::{IRQ_VECTOR, NMI_VECTOR, RESET_VECTOR};
 use crate::bus::{ByteAccess, WordAccess};
 use std::ops::{BitAnd, BitOr, BitOrAssign, Shl, Shr};
@@ -417,6 +417,7 @@ impl Six502 {
     /// jump with absolute addressing
     /// basically loads a new address into the pc unconditionally
     /// the cpu knows to always load the next instruction address from the pc
+    ///  comeback: 3 or 4 clock cycles: seacrh kim1-6502 for 'The jump absolute therefore only requires 3 cycles.'
     pub(super) fn jmp(&mut self) -> bool {
         self.pc = self.load_u16_bump_pc();
         false

@@ -1,4 +1,4 @@
-use super::addressing;
+use super::addr_mode;
 use super::flags;
 use super::Six502;
 use crate::bus::{ByteAccess, WordAccess};

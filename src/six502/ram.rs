@@ -3,15 +3,6 @@ use crate::bus::{ByteAccess, WordAccess};
 use core::panic;
 use std::ops::{Deref, DerefMut, Index};
 
-impl ByteAccess for Six502 {
-    fn load_u8(&mut self, addr: u16) -> u8 {
-        self.bus.load_u8(addr)
-    }
-
-    fn store_u8(&mut self, addr: u16, v: u8) {
-        self.bus.store_u8(addr, v);
-    }
-}
 
 pub struct Ram {
     array: [u8; 0x800],

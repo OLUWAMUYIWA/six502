@@ -1,4 +1,4 @@
-use super::six502::{interrupt::Interrupt, memory::Ram};
+use super::six502::{interrupt::Interrupt, ram::Ram};
 use crate::{apu::Apu, ctrl::Joypad, ppu::Ppu, rom::Rom};
 
 //https://www.nesdev.org/wiki/CPU_memory_map
@@ -107,7 +107,7 @@ impl ByteAccess for DataBus {
 
 impl Default for DataBus {
     fn default() -> Self {
-        Self {
+        DataBus {
             ram: Ram::new(),
             rom: Rom::new(),
             apu: Apu::new(),

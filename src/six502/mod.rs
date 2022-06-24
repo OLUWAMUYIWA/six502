@@ -3,17 +3,17 @@
 ///! Other resources include: Masswerks description of the opcodes ar [masswerk](https://www.masswerk.at/6502/6502_instruction_set.html)
 ///! and the [6502 org website](http://www.6502.org/tutorials/6502opcodes.html)
 ///! The MCS6502 is an 8-bit microprocessor. This means that 8 bits of data are transferred or operated upon during each instruction cycle or operation cycle.
-use crate::bus::DataBus;
+use crate::bus::{DataBus, ByteAccess};
 
-use self::{addressing::AddressingMode, memory::Ram};
-use addressing::AddressingMode::*;
+use self::{addr_mode::AddressingMode, ram::Ram};
+use addr_mode::AddressingMode::*;
 use bitflags::*;
 use std::collections::HashMap;
 
-pub(crate) mod addressing;
+pub(crate) mod addr_mode;
 pub(crate) mod disasm;
 pub(crate) mod interrupt;
-pub(crate) mod memory;
+pub(crate) mod ram;
 mod opcodes;
 mod util;
 
@@ -346,5 +346,15 @@ impl Six502 {
         if over {
             self.cy.wrapping_add(1);
         }
+    }
+}
+
+impl ByteAccess for Six502 {
+    fn load_u8(&mut self, addr: u16) -> u8 {
+        self.bus.load_u8(addr)
+    }
+
+    fn store_u8(&mut self, addr: u16, v: u8) {
+        self.bus.store_u8(addr, v);
     }
 }
