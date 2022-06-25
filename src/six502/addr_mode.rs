@@ -12,13 +12,25 @@ use std::ops::{AddAssign, BitOrAssign, Index, RangeBounds, Shl, Shr};
 
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
+
+
+// Two major kinds of addressing exist. 
+// 1.Direct addressing: where the address is plainl what is after the opcode. e.g. absolute, zero_page, immediate.
+// 2. i.  Indexed addressing uses an address which is computed by means of modifying the address data accessed by.
+//        the program counter with an internal register called an index register.
+//        e.g. Abs_X_Idxd, Abs_Y_Idxd, ZP_X_Idxd, ZP_Y_Idxd
+//    ii. Indirect addressing uses a  computed and stored address which is accessed by 
+//        an indirect pointer in the programming sequence.
 pub enum AddressingMode {
     // OPC means `opcode`.
-    // operand is the accumulator. single byte instruction
+    // operand is the accumulator. for single byte instructions
     Accumulator,
 
     // OPC $LLHH: operand is address $HHLL (i.e. read little-endian)
     Absolute,
+
+    // Next two are Absolute Indexed.
+    // Absolute indexed address is absolute addressing with an index register added to the absolute address.
 
     // OPC $LLHH,X: operand is address; effective address is address incremented by X with carry
     Abs_X_Idxd,
@@ -68,14 +80,17 @@ impl AddressingMode {
             AddressingMode::Abs_X_Idxd => {
                 // with carry
                 let op = cpu.load_u16_bump_pc();
-
-                let lb_op = op as u8;
+                
                 // check if it'll overflow into the zero page
+                let lb_op = op as u8;
                 let (_, carry) = lb_op.overflowing_add(cpu.x);
+
                 (cpu.load_u8(op + (cpu.x as u16)), carry)
             }
             AddressingMode::Abs_Y_Idxd => {
                 let op = cpu.load_u16_bump_pc();
+
+                // check if it'll overflow into the zero page
                 let lb_op = op as u8;
                 let (_, carry) = lb_op.overflowing_add(cpu.y);
                 (cpu.load_u8(op + (cpu.y as u16)), carry)
@@ -91,13 +106,18 @@ impl AddressingMode {
             AddressingMode::ZP => {
                 let addr = cpu.load_u8_bump_pc();
                 (cpu.load_u8(addr as u16), false)
-            } //without carry
+            } 
+            //without carry
             AddressingMode::ZP_X_Idxd => {
                 let addr = cpu.load_u8_bump_pc();
                 (
                 cpu.load_u8((addr.wrapping_add(cpu.x)) as u16),
                 false
             ) }, //without carry. that's why we add the `u8`s before converting to `u16`, so it won't carry into the high-byte
+
+            //   If the base address plus X or Y exceeds the value that
+            //   can be stored in a single byte, no carry is generated, therefore there is no page crossing phenomena
+            //    A wrap-around will occur within Page Zero
             AddressingMode::ZP_Y_Idxd =>{ 
                 let addr = cpu.load_u8_bump_pc();
                 (
@@ -134,14 +154,18 @@ impl AddressingMode {
 
             AddressingMode::Abs_X_Idxd => {
                 let op = cpu.load_u16_bump_pc();
+
+                // check if it'll overflow into the zero page
                 let lb_op = op as u8;
                 let (_, carry) = lb_op.overflowing_add(cpu.x);
                 let addr = cpu.load_u16_bump_pc();
+
                 cpu.store_u8(addr + (cpu.x as u16), v);
                 carry
             }
             AddressingMode::Abs_Y_Idxd => {
                 let op = cpu.load_u16_bump_pc();
+                // check if it'll overflow into the zero page
                 let lb_op = op as u8; // truncates
                 let (_, carry) = lb_op.overflowing_add(cpu.y);
                 let addr = cpu.load_u16_bump_pc();
@@ -157,14 +181,18 @@ impl AddressingMode {
                 false
             }
 
+            //   If the base address plus X or Y exceeds the value that
+            //   can be stored in a single byte, no carry is generated, therefore there is no page crossing phenomena
+            //    A wrap-around will occur within Page Zero
+
             AddressingMode::ZP_X_Idxd => {
                 let addr = cpu.load_u8_bump_pc();
-                cpu.store_u8((addr + cpu.x) as u16, v);
+                cpu.store_u8((addr.wrapping_add(cpu.x)) as u16, v);
                 false
             }
             AddressingMode::ZP_Y_Idxd => {
                 let addr = cpu.load_u8_bump_pc();
-                cpu.store_u8((addr + cpu.y) as u16, v);
+                cpu.store_u8((addr.wrapping_add(cpu.y)) as u16, v);
                 false
             }
 

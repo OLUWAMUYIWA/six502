@@ -26,7 +26,7 @@ impl<T: ByteAccess> WordAccess for T {
 
     // unlike `load_u16`, `load_u16_no_carry` is used by te `Indexed Indirect` and the `Indirect Indexed` addressing modes
     fn load_u16_no_carry(&mut self, addr: u8) -> u16 {
-        u16::from_le_bytes([self.load_u8(addr as u16), self.load_u8(addr as u16)])
+        u16::from_le_bytes([self.load_u8(addr as u16), self.load_u8((addr + 1) as u16)])
     }
 
     fn store_u16(&mut self, addr: u16, v: u16) {
