@@ -68,7 +68,12 @@ impl Flags6 {
         }
     }
 }
+impl Default for Rom {
 
+    fn default() -> Self {
+        todo!()
+    }
+}
 impl Rom {
     pub(crate) fn new() -> Self {
         todo!()

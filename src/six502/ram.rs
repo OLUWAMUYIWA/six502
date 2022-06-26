@@ -22,6 +22,12 @@ impl DerefMut for Ram {
     }
 }
 
+impl Default for Ram {
+
+    fn default() -> Self {
+        todo!()
+    }
+}
 impl Ram {
     pub(crate) fn new() -> Self {
         Self {

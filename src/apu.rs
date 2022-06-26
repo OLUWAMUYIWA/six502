@@ -29,6 +29,11 @@
 
 pub(crate) struct Apu {}
 
+impl Default for Apu {
+    fn default() -> Self {
+        todo!()
+    }
+}
 impl Apu {
     pub(crate) fn new() -> Self {
         Self {}

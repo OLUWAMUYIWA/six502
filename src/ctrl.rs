@@ -25,6 +25,11 @@ pub struct Joypad {
     curr: JoypadButton,
 }
 
+impl  Default for Joypad {
+    fn default() -> Self {
+        todo!()
+    }
+}
 impl Joypad {
     pub fn new() -> Self {
         Joypad {

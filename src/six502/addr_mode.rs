@@ -123,19 +123,27 @@ impl AddressingMode {
                 (
                 cpu.load_u8((addr.wrapping_add(cpu.y)) as u16),
                 false,
-            ) }, //without carry
+            ) },
+            // The major use of indexed indirect is in picking up data from a table or list of addresses to perform an operation.
             AddressingMode::XIdxd_Indirect => {
                 let v = cpu.load_u8_bump_pc();
-                let addr = cpu.x + v;
-                let addr = cpu.load_u16_no_carry(addr);
-                (cpu.load_u8(addr), false) // without carry
+                // zero page addition. Never crosses page. wraps around
+                let comp = cpu.x.wrapping_add(v) ;
+                let lo_addr = cpu.load_u8(comp as u16);
+                let hi_addr = cpu.load_u8((comp + 1) as u16);
+                // say comp is 0x05 effective address becomes 0x0605 
+                let eff_addr = u16::from_le_bytes([lo_addr, hi_addr]);
+                (cpu.load_u8(eff_addr), false) // never crosses pae as the indexing is done in the zero page
             }
             AddressingMode::Indirect_Y_Idxd => {
                 let y = cpu.y;
                 let v = cpu.load_u8_bump_pc();
-                // (cpu.load_u8(v as u16) as u16 | (cpu.load_u8((v + 1) as u16) as u16) << 8)
-                let addr = cpu.load_u16_no_carry(v);
-                (cpu.load_u8(addr + y as u16), false) //with carry
+                let lo_addr = cpu.load_u8(v as u16);
+                let hi_addr = cpu.load_u8((v + 1) as u16);
+                // say v is 0x05 effective address becomes 0x0605 
+                let eff_addr = u16::from_le_bytes([lo_addr, hi_addr]);
+                let (_, carry) = lo_addr.overflowing_add(y);
+                (cpu.load_u8(eff_addr.wrapping_add(y as u16)), carry) // might cross page
             }
         }
     }
@@ -197,19 +205,28 @@ impl AddressingMode {
             }
 
             AddressingMode::XIdxd_Indirect => {
-                let val = cpu.load_u8_bump_pc();
-                let addr = cpu.x.wrapping_add(val);
-                let addr =cpu.load_u16_no_carry(addr);
-                cpu.store_u8(addr, v);
-                false
+                let v = cpu.load_u8_bump_pc();
+                // zero page addition. Never crosses page. wraps around
+                let comp = cpu.x.wrapping_add(v);
+                let lo_addr = cpu.load_u8(comp as u16);
+                let hi_addr = cpu.load_u8(comp.wrapping_add(1) as u16);
+                let eff_addr = u16::from_le_bytes([lo_addr, hi_addr]);
+                cpu.store_u8(eff_addr, v);
+                false // never crosses page as the indexing is done in the zero page
             }
             AddressingMode::Indirect_Y_Idxd => {
                 let v = cpu.load_u8_bump_pc();
                 let y = cpu.y;
-                let addr = cpu.load_u16_no_carry(v);
-                cpu.store_u8(addr + y as u16, v);
-                false
+                let lo_addr = cpu.load_u8(v as u16);
+                let hi_addr = cpu.load_u8((v + 1) as u16);
+                // say v is 0x05 effective address becomes 0x0605 
+                let eff_addr = u16::from_le_bytes([lo_addr, hi_addr]);
+                let (_, carry) = lo_addr.overflowing_add(y);
+                cpu.store_u8(eff_addr.wrapping_add(y as u16), v);
+                carry // might cross page
             }
         }
     }
 }
+
+

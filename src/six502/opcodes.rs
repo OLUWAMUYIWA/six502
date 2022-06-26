@@ -20,6 +20,7 @@ impl Six502 {
         num_cy(cross)
     }
 
+    ///  Load the index register X from memory.
     pub(super) fn ldx(&mut self, mode: AddressingMode) -> u8 {
         let (v, cross) = mode.load(self);
         self.x = v;
@@ -28,6 +29,7 @@ impl Six502 {
         num_cy(cross)
     }
 
+    ///  Load the index register Y from memory.
     pub(super) fn ldy(&mut self, mode: AddressingMode) -> u8 {
         let (v, cross) = mode.load(self);
         self.y = v;
@@ -43,11 +45,13 @@ impl Six502 {
         num_cy(cross)
     }
 
+    /// Transfers value of X register to addressed memory location. affects no flag
     pub(super) fn stx(&mut self, mode: AddressingMode) -> u8 {
        let cross =  mode.store(self, self.x);
        num_cy(cross)
     }
 
+    /// Transfers value of Y register to addressed memory location. affects no flag
     pub(super) fn sty(&mut self, mode: AddressingMode) -> u8 {
         let cross = mode.store(self, self.y);
         num_cy(cross)
@@ -56,40 +60,37 @@ impl Six502 {
 
 // comparisons
 impl Six502 {
+    // util for compare operations
+    // reg is the register the value v (loaded from memory) will be subtracted from.
+    fn compare(&mut self, reg: u8, v: u8) {
+        let v = v as u16;
+        let reg = reg as u16;
+        // causes the carry to be set on if the absolute value of the index register X is equal to or greater than the data from memory.
+        self.assert_flag(flags::CARRY, reg >= v);
+        self.update_z((reg.wrapping_sub(v)) as u8);
+        self.update_n((reg.wrapping_sub(v)) as u8);
+    }
     /// CMP - Compare Memory and Accumulator.
     /// subtracts the contents of memory from the contents of the accumulator.
     /// It sets flags as if a subtraction had been carried out between the accumulator and the operand
     /// Immediate; Zero Page; Zero Page,X; Absolute; Absolute,X; Absolute,Y; (Indirect,X); (Indirect) ,Y
     pub(super) fn cmp(&mut self, mode: AddressingMode) -> u8 {
         let (v, cross) = mode.load(self);
-        let v = v as u16;
-        let a = self.a as u16;
-        self.assert_flag(flags::CARRY, a >= v);
-        self.update_z((a - v) as u8);
-        self.update_n((a - v) as u8);
+        self.compare(self.a, v);
         num_cy(cross)
     }
 
     /// cpx: compare accumulator. It sets flags as if a subtraction had been carried out between the x register and the operand
     pub(super) fn cpx(&mut self, mode: AddressingMode) -> u8 {
         let (v, cross) = mode.load(self);
-        let v = v as u16;
-        let x = self.x as u16;
-        self.assert_flag(flags::CARRY, x >= v);
-
-        self.update_z((x - v) as u8);
-        self.update_n((x - v) as u8);
+        self.compare(self.x, v);
         num_cy(cross)
     }
 
     /// cpy: compare accumulator. It sets flags as if a subtraction had been carried out between the y register and the operand
     pub(super) fn cpy(&mut self, mode: AddressingMode) -> u8 {
         let (v, cross) = mode.load(self);
-        let v = v as u16;
-        let y = self.y as u16;
-        self.assert_flag(flags::CARRY, y >= v);
-        self.update_z((y - v) as u8);
-        self.update_n((y - v) as u8);
+        self.compare(self.y, v);
         num_cy(cross)
     }
 
@@ -107,6 +108,7 @@ impl Six502 {
 }
 
 // register transfers
+// these ops make use of implied addressing, and are one byte instructions
 impl Six502 {
     /// tax transfers accumulator into x register, updating the z and n flags based on the value of a
     pub(super) fn tax(&mut self) -> u8 {
@@ -116,6 +118,8 @@ impl Six502 {
         0
     }
 
+    /// moves the value that is in the index register X to the accumulator A without disturbing the content of the index register X.
+    /// affects Z, N
     pub(super) fn txa(&mut self) -> u8 {
         self.a = self.x;
         self.update_z(self.x);
@@ -123,6 +127,7 @@ impl Six502 {
         0
     }
 
+    ///  moves the value of the accumulator into index register Y without affecting the accumulator. affects Z, N
     pub(super) fn tay(&mut self) -> u8 {
         self.y = self.a;
         self.update_z(self.a);
@@ -130,6 +135,7 @@ impl Six502 {
         0
     }
 
+    // moves the value that is in the index register Y to accumulator A without disturbing the content of the register Y. affects Z, N
     pub(super) fn tya(&mut self) -> u8 {
         self.a = self.y;
         self.update_z(self.y);
@@ -137,7 +143,7 @@ impl Six502 {
         0
     }
 
-    /// tsx: Transfer Stack ptr to X
+    /// tsx: Transfer Stack ptr to X, affects Z, N
     pub(super) fn tsx(&mut self) -> u8 {
         self.x = self.s;
         self.update_z(self.s);
@@ -317,7 +323,7 @@ impl Six502 {
         self.update_z(v);
         self.update_n(v);
         let cross_store = mode.store(self, v);
-        num_cy(cross) + num_cy(cross_store) // crossed both while loading and storing?
+        num_cy(cross) + num_cy(cross_store) // crossed pages both while loading and storing?
     }
 
     pub(super) fn dec(&mut self, mode: AddressingMode) -> u8 {
@@ -326,9 +332,10 @@ impl Six502 {
         self.update_z(v);
         self.update_n(v);
         let cross_store = mode.store(self, v);
-        num_cy(cross) + num_cy(cross_store) 
+        num_cy(cross) + num_cy(cross_store) // crossed pages both while loading and storing?
     }
 
+    ///   Increment X adds 1 to the current value of the X register. 
     pub(super) fn inx(&mut self) -> u8 {
         let x = self.x.wrapping_add(1);
         self.update_z(x);
@@ -337,6 +344,7 @@ impl Six502 {
         0
     }
 
+    /// subtracts one from the current value of the index register X and stores the result in the index register X
     pub(super) fn dex(&mut self) -> u8 {
         let x = self.x.wrapping_sub(1);
         self.update_z(x);
@@ -345,6 +353,7 @@ impl Six502 {
         0
     }
 
+    ///   Increment Y adds 1 to the current value of the Y register. 
     pub(super) fn iny(&mut self) -> u8 {
         let y = self.y.wrapping_add(1);
         self.update_z(y);
@@ -353,6 +362,7 @@ impl Six502 {
         0
     }
 
+    ///  subtracts one from the current value in the index register Y and stores the result into the index register y
     pub(super) fn dey(&mut self) -> u8 {
         let y = self.y.wrapping_sub(1);
         self.update_z(y);

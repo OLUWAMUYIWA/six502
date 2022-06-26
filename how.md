@@ -15,3 +15,6 @@
      sometimes obtained as a group of addresses.  In order to implement
      this type of indexing or addressing, the use of indirect addressing
      has been introduced.
+
+#### __Why do we have Indexed Addressing?__  
+As has been developed in many of the previous examples, an index register has primary values as a modifier and as a counter.  As a modifier to a base address operation, it allows the accessing of contiguous groups of data by simple modification of the index.

@@ -12,8 +12,6 @@ pub trait ByteAccess {
 
 pub trait WordAccess {
     fn load_u16(&mut self, addr: u16) -> u16;
-    // loads the word from a u8 address. no carries to the other page
-    fn load_u16_no_carry(&mut self, addr: u8) -> u16;
     fn store_u16(&mut self, addr: u16, v: u16);
 }
 
@@ -22,11 +20,6 @@ impl<T: ByteAccess> WordAccess for T {
     // 6502 arranges integers in little-endian order. lower bytes first
     fn load_u16(&mut self, addr: u16) -> u16 {
         u16::from_le_bytes([self.load_u8(addr), self.load_u8(addr + 1)])
-    }
-
-    // unlike `load_u16`, `load_u16_no_carry` is used by te `Indexed Indirect` and the `Indirect Indexed` addressing modes
-    fn load_u16_no_carry(&mut self, addr: u8) -> u16 {
-        u16::from_le_bytes([self.load_u8(addr as u16), self.load_u8((addr + 1) as u16)])
     }
 
     fn store_u16(&mut self, addr: u16, v: u16) {
@@ -107,16 +100,15 @@ impl ByteAccess for DataBus {
 
 impl Default for DataBus {
     fn default() -> Self {
-        DataBus {
-            ram: Ram::new(),
-            rom: Rom::new(),
-            apu: Apu::new(),
-            ppu: Ppu::new(),
-            joypad_1: Joypad::new(),
-            joypad_2: Joypad::new(),
-            interrupt: Interrupt::new(),
-            cycles: todo!(),
-        }
+        Self { 
+            ram: Default::default(), 
+            rom: Default::default(), 
+            apu: Default::default(), 
+            ppu: Default::default(), 
+            joypad_1: Default::default(), 
+            joypad_2: Default::default(), 
+            interrupt: Default::default(), 
+            cycles: Default::default() }
     }
 }
 

@@ -5,6 +5,11 @@ mod vram;
 
 pub(crate) struct Ppu {}
 
+impl Default for Ppu {
+    fn default() -> Self {
+        todo!()
+    }
+}
 impl Ppu {
     pub(crate) fn new() -> Self {
         Self {}
