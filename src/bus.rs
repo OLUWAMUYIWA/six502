@@ -33,6 +33,7 @@ impl<T: ByteAccess> WordAccess for T {
 /// called the data bus. The outside sources include (in our case) the program which controls the microprocessor, and the actual communications to the world through input/output
 /// ports.
 ///! The duty of the data bus is to facilitate exchange of data between memory and the processor's internal registers.
+#[derive(Debug)]
 pub struct DataBus {
     pub ram: Ram,
     pub rom: Rom,
@@ -51,6 +52,8 @@ impl DataBus {
         }
     }
 }
+
+
 
 // [memory map spec](https://8bitworkshop.com/blog/platforms/nes/)
 // | ---------------------------------------------------------

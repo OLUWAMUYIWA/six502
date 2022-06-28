@@ -3,6 +3,7 @@ use crate::bus::ByteAccess;
 mod regs;
 mod vram;
 
+#[derive(Debug)]
 pub(crate) struct Ppu {}
 
 impl Default for Ppu {

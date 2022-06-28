@@ -13,7 +13,8 @@ use nom::{
     Err, IResult,
 };
 
-// https://www.nesdev.org/wiki/INES
+/// https://www.nesdev.org/wiki/INES
+#[derive(Debug)]
 pub struct Rom {
     hdr: Hdr,
     trainer: Option<Vec<u8>>,
@@ -21,6 +22,7 @@ pub struct Rom {
     pub(crate) chr_rom: PagedData, // (8192 * y bytes) character rom. used by the ppu
 }
 
+#[derive(Debug)]
 pub struct Hdr {
     pub prg_rom_size: usize, //Size of PRG ROM in 16 KB units, expanded
     pub chr_rom_size: usize, //  Size of CHR ROM in 8 KB units (Value 0 means the board uses CHR RAM), expanded
@@ -162,6 +164,7 @@ impl Rom {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct PagedData {
     v: Vec<u8>,
 }

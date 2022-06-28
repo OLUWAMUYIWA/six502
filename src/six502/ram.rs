@@ -3,7 +3,7 @@ use crate::bus::{ByteAccess, WordAccess};
 use core::panic;
 use std::ops::{Deref, DerefMut, Index};
 
-
+#[derive(Debug)]
 pub struct Ram {
     array: [u8; 0x800],
 }

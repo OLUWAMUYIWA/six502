@@ -1,6 +1,6 @@
 use super::util::{check_overflow, num_cy};
 use super::{addr_mode::AddressingMode, flags, Six502};
-use super::{IRQ_VECTOR, NMI_VECTOR, RESET_VECTOR};
+use super::vectors::{NMI, IRQ};
 use crate::bus::{ByteAccess, WordAccess};
 use std::ops::{BitAnd, BitOr, BitOrAssign, Shl, Shr};
 
@@ -47,8 +47,8 @@ impl Six502 {
 
     /// Transfers value of X register to addressed memory location. affects no flag
     pub(super) fn stx(&mut self, mode: AddressingMode) -> u8 {
-       let cross =  mode.store(self, self.x);
-       num_cy(cross)
+        let cross = mode.store(self, self.x);
+        num_cy(cross)
     }
 
     /// Transfers value of Y register to addressed memory location. affects no flag
@@ -161,12 +161,17 @@ impl Six502 {
 }
 
 // stack ops
+// single byte instructions. addressing mode implied
 impl Six502 {
+    /// transfers the current value of the accumulator the next location on the stack, automatically decrementing the stack to
+    /// point to the next empty location.
     pub(super) fn pha(&mut self) -> u8 {
         self.push_u8(self.a);
         0
     }
 
+    /// adds 1 to the current value of the stack pointer and uses it to address the stack and loads the contents of the stack
+    /// into the A register.
     pub(super) fn pla(&mut self) -> u8 {
         let v = self.pull_u8();
         self.update_z(v);
@@ -175,19 +180,21 @@ impl Six502 {
         0
     }
 
-    // php push processor status
+    /// push processor status on stack
     pub(super) fn php(&mut self) -> u8 {
         let flags = self.p;
+        // php sets both Break for th flag pushed onto the stack
         self.push_u8(flags | flags::BREAK);
         0
     }
 
     /// plp pulls processor status
+    /// transfers the next value on the stack to the Processor Status register, thereby changing all of the flags and
+    /// setting the mode switches to the values from the stack.
     pub(super) fn plp(&mut self) -> u8 {
         let val = self.pull_u8();
-        self.set_flag(val);
-        self.clear_flag(flags::BREAK);
-        self.set_flag(flags::UNUSED);
+        // set all the flags except the break flag, which remains as it was
+        self.p = val & (self.p & flags::BREAK);
         0
     }
 }
@@ -335,7 +342,7 @@ impl Six502 {
         num_cy(cross) + num_cy(cross_store) // crossed pages both while loading and storing?
     }
 
-    ///   Increment X adds 1 to the current value of the X register. 
+    ///   Increment X adds 1 to the current value of the X register.
     pub(super) fn inx(&mut self) -> u8 {
         let x = self.x.wrapping_add(1);
         self.update_z(x);
@@ -353,7 +360,7 @@ impl Six502 {
         0
     }
 
-    ///   Increment Y adds 1 to the current value of the Y register. 
+    ///   Increment Y adds 1 to the current value of the Y register.
     pub(super) fn iny(&mut self) -> u8 {
         let y = self.y.wrapping_add(1);
         self.update_z(y);
@@ -445,6 +452,9 @@ impl Six502 {
         0
     }
 
+    /// jump to subroutine
+    /// transfers control of the program counter to a sub- routine location but leaves a return pointer on the stack to allow the
+    /// user to return to perform the next instruction in the main program after the subroutine is complete
     pub(super) fn jsr(&mut self) -> u8 {
         let pc = self.pc;
         let addr = self.load_u16_bump_pc();
@@ -453,6 +463,9 @@ impl Six502 {
         0
     }
 
+    /// loads the program Count low and program count high
+    /// from the stack into the program counter and increments the program Counter
+    ///  so that it points to the instruction following the JSR
     pub(super) fn rts(&mut self) -> u8 {
         let pos = self.pull_u16() + 1;
         self.pc = pos;
@@ -474,7 +487,7 @@ impl Six502 {
     /// The status register is pulled with the break flag and bit 5 ignored. Then PC is pulled from the stack.
     pub(super) fn rti(&mut self) -> u8 {
         let flags = self.pull_u8(); // pop the cpu flags from the stack
-        // set flag
+                                    // set flag
         self.set_flag(flags);
         // ignore break flag
         self.clear_flag(flags::BREAK);
@@ -497,7 +510,6 @@ impl Six502 {
 // In relative addressing, we add the value in the memory location following the OPCODE to the program counter.  This allows us to
 // specify a new program counter location with only two bytes, one for the OPCODE and one for the value to be added.
 impl Six502 {
-
     /// base routine for branching. cond parameter states that you wan the flag to be either set/unset
     /// If a branch is normally not taken, assume 2 cycles for the branch.
     /// If the branch is normally taken but it does not across the page boundary, assume 3 cycles for the branch.
@@ -508,7 +520,7 @@ impl Six502 {
         let off = self.load_u8_bump_pc() as i8 as u16;
         let old_pc = self.pc;
         let mut num_cy = 0;
-        if cond && self.is_flag_set(flag){
+        if cond && self.is_flag_set(flag) {
             self.pc = self.pc.wrapping_add(off);
             num_cy += 1; // branch was taken. branching truly occured
         } else if !cond && !self.is_flag_set(flag) {
@@ -518,7 +530,7 @@ impl Six502 {
         if (self.pc & 0xff00) != (old_pc & 0xff00) {
             // crossed page boundary
             num_cy += 1;
-        } 
+        }
         // max num_cy is 2
         num_cy
     }
@@ -604,5 +616,24 @@ impl Six502 {
     pub(super) fn sed(&mut self) -> u8 {
         self.set_flag(flags::DECIMAL);
         0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::six502::Six502;
+
+    fn test_adc() {
+        let mut cpu = Six502 {
+            a: 0x05,
+            x: 0x01,
+            y: 0x01,
+            pc: 0x0000,
+            s: 0xaa,
+            cy: 4,
+            p: 0x00,
+            bus: Default::default(),
+        };
     }
 }

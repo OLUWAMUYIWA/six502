@@ -27,6 +27,7 @@
 // | $4017   | JOY2             | ...xxxxd    | Joystick 2 (read)                               |
 // ---------------------------------------------------------------------------------------------|
 
+#[derive(Debug)]
 pub(crate) struct Apu {}
 
 impl Default for Apu {

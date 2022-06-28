@@ -19,14 +19,31 @@ impl Six502 {
         self.load_u16(addr)
     }
 
-    // stack helpers
-
+    // STACK
+    // The stack in the MCS650X family is a push-down stack implemented
+    //  by a processor register called the stack pointer which the programmer ini-
+    //  tializes by means of a Load X immediately followed by a TXS instruction and
+    //  thereafter Is controlled by the microprocessor which loads data into mem-
+    //  ory based on an address constructed by adding the contents of the stack
+    //  pointer to a fixed address, Hex address 0100.  Every time the microproces-
+    //  sor loads data into memory using the stack pointer, it automatically decre-
+    //  ments the stack pointer, thereby leaving the stack pointer pointing at the
+    //  next open memory byte.  Every time the microprocessor accesses data from
+    //  the stack, it adds 1 to the current value of the stack pointer and reads
+    //  the memory location by putting out the address 0100 plus the stack pointer.
+    //  The Status register is automatically pointing at the next memory location
+    //  to which data can now be written.  The stack makes an interesting place to
+    //  store interim data without the programmer having to worry about the actual
+    //  memory location in which data will be directly stored.
+    // operations which put data on the stack cause the pointer to be decremented automatically
     pub(super) fn push_u8(&mut self, b: u8) {
         let addr = u16::from(STACK_OFFSET + self.s as u16);
         self.store_u8(addr, b);
         self.s = self.s.wrapping_sub(1);
     }
 
+    // operations which pull data from the stack cause the pointer to be incremented automatically
+    // adds 1 to the current value of the stack pointer and uses it to address the stack 
     pub(super) fn pull_u8(&mut self) -> u8 {
         let addr = u16::from(STACK_OFFSET + self.s as u16) + 1;
         let v = self.load_u8(addr);

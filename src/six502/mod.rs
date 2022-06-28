@@ -3,7 +3,7 @@
 ///! Other resources include: Masswerks description of the opcodes ar [masswerk](https://www.masswerk.at/6502/6502_instruction_set.html)
 ///! and the [6502 org website](http://www.6502.org/tutorials/6502opcodes.html)
 ///! The MCS6502 is an 8-bit microprocessor. This means that 8 bits of data are transferred or operated upon during each instruction cycle or operation cycle.
-use crate::bus::{ByteAccess, DataBus};
+use crate::bus::{ByteAccess, DataBus, WordAccess};
 
 use self::{addr_mode::AddressingMode, ram::Ram};
 use addr_mode::AddressingMode::*;
@@ -17,13 +17,6 @@ mod opcodes;
 pub(crate) mod ram;
 mod util;
 
-// SYSTEM VECTORS
-// A vector pointer consists of a program counter high and program counter low value which, under control of
-// the microprocessor, is loaded in the program counter when certain external
-// events occur. The word vector is developed from the fact that the microprocessor directly controls the memory location from which a particular operation
-const NMI_VECTOR: usize = 0xfffa; // NMI (Non-Maskable Interrupt) vector, 16-bit (LB, HB)
-const RESET_VECTOR: usize = 0xfffc; // RES (Reset) vector, 16-bit (LB, HB)
-const IRQ_VECTOR: usize = 0xfffe; // IRQ (Interrupt Request) vector, 16-bit (LB, HB)
 
 // |   |   |   |   |   |   |   |   |
 // | N | V |   | B | D | I | Z | C |     PROCESSOR STATUS REGISTER
@@ -73,6 +66,16 @@ pub(super) mod flags {
     pub const NEGATIVE: u8 = 1 << 7;
 }
 
+// SYSTEM VECTORS
+// A vector pointer consists of a program counter high and program counter low value which, under control of
+// the microprocessor, is loaded in the program counter when certain external events occur. 
+// The word vector is developed from the fact that the microprocessor directly controls the memory location from which a particular operation
+pub(super) mod vectors {
+    pub(super) const RESET: u16 = 0xfffc; // 16-bit (LB, HB)
+    pub(super) const IRQ: usize = 0xfffe; // IRQ (Interrupt Request) vector, 16-bit (LB, HB)
+    pub(super) const NMI: usize = 0xfffa; // NMI (Non-Maskable Interrupt) vector, 16-bit (LB, HB)
+}
+
 pub struct Six502 {
     // the major use for the accumulator is transferring data from memory to the accumulator or from the accumulator to memory.
     // mathematical amd logical operations can then be done to data inside the accumulator. It is where intermediate values are normally  stored
@@ -105,6 +108,23 @@ impl Six502 {
             p: 0x24,
             bus: DataBus::new(),
         }
+    }
+
+    /// sets the program counter to the value the RESET vector pointer holds
+    pub(super) fn reset(&mut self) {
+     // There are two major facts to remember about initialization.  One, the only automatic operations of the microprocessor during reset are to turn
+     // on the interrupt disable bit and to force the program counter to the vector location specified in locations 
+     // FFFC and FFFD and to load the first instruction from that location. 
+        // force the program counter to the vector location specified in locations FFFC and FFFD
+        self.pc = self.load_u16(vectors::RESET);
+        self.p = 0b00110100;
+
+        // just to be sure
+        self.a = 0x00;
+        self.x = 0x00;
+        self.y = 0x00;
+
+        // comeback. number of cycles should be 8, byt should include 
     }
     pub fn step(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         Ok(())

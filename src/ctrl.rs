@@ -19,6 +19,7 @@ bitflags::bitflags! {
         }
 }
 
+#[derive(Debug)]
 pub struct Joypad {
     strobe: bool,
     index: u8,
