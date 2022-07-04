@@ -29,10 +29,12 @@ impl<T: ByteAccess> WordAccess for T {
 }
 
 /// The DataBus
-/// data has to transfer between the accumulator and the internal registers of the microprocessor and outside sources by means of passing through the microprocessor to 8 lines
-/// called the data bus. The outside sources include (in our case) the program which controls the microprocessor, and the actual communications to the world through input/output
-/// ports.
+/// data has to transfer between the accumulator and the internal registers of the microprocessor and outside sources by means of passing through
+///  the microprocessor to 8 lines called the data bus. The outside sources include (in our case) the program 
+/// which controls the microprocessor, and the actual communications to the world through input/output ports.
 ///! The duty of the data bus is to facilitate exchange of data between memory and the processor's internal registers.
+/// I/o operationS on this type of microprocessor are accomplished by reading and writing registers which
+/// actually represent connections to physical devices or to physical pins  which connect to physical devices.
 #[derive(Debug)]
 pub struct DataBus {
     pub ram: Ram,
@@ -114,5 +116,3 @@ impl Default for DataBus {
             cycles: Default::default() }
     }
 }
-
-pub struct AddressBus {}

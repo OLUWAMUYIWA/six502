@@ -485,9 +485,16 @@ impl Six502 {
 
     /// retrieves the Processor Status Word (flags) and the Program Counter from the stack in that order
     /// The status register is pulled with the break flag and bit 5 ignored. Then PC is pulled from the stack.
+    /// All interrupts end with an RTI
+    /// Because the interrupt disable had to be off for an interrupt request to have been honored, 
+    /// the return from interrupt which loads the processor status from before the interrupt occured has the effect of 
+    /// clearing the interrupt disable bit.
+    /// There is no automatic save of any of the other registers in the microprocessor.  Because the interrupt occurred to allow data to be trans-
+    /// ferred using the microprocessor, the programmer must save the various internal registers at the time the interrupt is taken 
+    /// and restore them prior to returning from the interrupt. This is done on the stack
     pub(super) fn rti(&mut self) -> u8 {
         let flags = self.pull_u8(); // pop the cpu flags from the stack
-                                    // set flag
+        // set flag
         self.set_flag(flags);
         // ignore break flag
         self.clear_flag(flags::BREAK);

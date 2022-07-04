@@ -46,11 +46,11 @@ pub(super) mod flags {
     // automatically set by the microprocessor during any data movement or calculation operation when the 8 bits of results of the operation are 0
     // uses: interna check by the processor when decrementing, so as not go go below .
     // affected by:  ADC, AND, ASL, BIT, CMP, CPY, CPX, DEC, DEX, DEY, EOR, INC, INX, INY, LDA, LDX, LDY, LSR, ORA, PLA, PLP, ROL, RTI, SBC, TAX, TAY, TXA, TYA.
-    pub const ZERO: u8 = 1 << 1; //set to 1 on equality
-                                 // interrupt disable flag
-                                 // the purpose is to disable the effects of the interrupt request pin
-                                 // IRQ is set by the microprocessor during reset and interrupt commands
-                                 // It is reset by the CLI instruction or the PLP instruction, or at a return from interrupt in which the interrupt disable was reset prior to the interrupt
+    pub const ZERO: u8 = 1 << 1;                        
+    // interrupt disable flag
+    // the purpose is to disable the effects of the interrupt request pin
+    // IRQ is set by the microprocessor during reset and interrupt commands
+    // It is reset by the CLI instruction or the PLP instruction, or at a return from interrupt in which the interrupt disable was reset prior to the interrupt
     pub const IRQ: u8 = 1 << 2;
     // given that the adder is in charge oarithmetic ops, this flag is useed to specify if the arithmetic should be done as straight binary nums or as decimals
     pub const DECIMAL: u8 = 1 << 3;
@@ -70,10 +70,11 @@ pub(super) mod flags {
 // A vector pointer consists of a program counter high and program counter low value which, under control of
 // the microprocessor, is loaded in the program counter when certain external events occur. 
 // The word vector is developed from the fact that the microprocessor directly controls the memory location from which a particular operation
+// Locations FFFA through FFFF are reserved for Vector pointers for the microprocessor.
 pub(super) mod vectors {
-    pub(super) const RESET: u16 = 0xfffc; // 16-bit (LB, HB)
-    pub(super) const IRQ: usize = 0xfffe; // IRQ (Interrupt Request) vector, 16-bit (LB, HB)
     pub(super) const NMI: usize = 0xfffa; // NMI (Non-Maskable Interrupt) vector, 16-bit (LB, HB)
+    pub(super) const IRQ: usize = 0xfffe; // IRQ (Interrupt Request) vector, 16-bit (LB, HB)
+    pub(super) const RESET: u16 = 0xfffc; // 16-bit (LB, HB)
 }
 
 pub struct Six502 {
@@ -96,42 +97,7 @@ pub struct Six502 {
     pub bus: DataBus,
 }
 
-impl Six502 {
-    pub(crate) fn new() -> Self {
-        Self {
-            a: 0,
-            x: 0,
-            y: 0,
-            pc: 0xc000,
-            s: 0xfd,
-            cy: 0,
-            p: 0x24,
-            bus: DataBus::new(),
-        }
-    }
-
-    /// sets the program counter to the value the RESET vector pointer holds
-    pub(super) fn reset(&mut self) {
-     // There are two major facts to remember about initialization.  One, the only automatic operations of the microprocessor during reset are to turn
-     // on the interrupt disable bit and to force the program counter to the vector location specified in locations 
-     // FFFC and FFFD and to load the first instruction from that location. 
-        // force the program counter to the vector location specified in locations FFFC and FFFD
-        self.pc = self.load_u16(vectors::RESET);
-        self.p = 0b00110100;
-
-        // just to be sure
-        self.a = 0x00;
-        self.x = 0x00;
-        self.y = 0x00;
-
-        // comeback. number of cycles should be 8, byt should include 
-    }
-    pub fn step(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        Ok(())
-    }
-}
-
-static CYCLES: [u8; 256] = [
+const CYCLES: [u8; 256] = [
     //    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, A, B, C, D, E, F  // lo bit
     /*0*/ 7, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2, 2, 4, 4, 6, 6, 
     /*1*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
@@ -153,6 +119,64 @@ static CYCLES: [u8; 256] = [
 ];
 
 impl Six502 {
+
+    pub(crate) fn new() -> Self {
+        Self {
+            a: 0,
+            x: 0,
+            y: 0,
+            pc: 0xc000,
+            s: 0xfd,
+            cy: 0,
+            p: 0x24,
+            bus: DataBus::new(),
+        }
+    }
+
+    /// sets the program counter to the value the RESET vector pointer holds
+    /// Instructions exist for the initialization and loading of all other registers in the microprocessor except for the initial setting of the
+    /// program counter.  It is for this initial setting of the program counter to a fixed location in the restart vector location specified by the micro-
+    /// processor programmer that the reset line in the microprocessor is primarily used.
+    pub(super) fn reset(&mut self) {
+     // There are two major facts to remember about initialization.  One, the only automatic operations of the microprocessor during reset are to turn
+     // on the interrupt disable bit and to force the program counter to the vector location specified in locations 
+     // FFFC and FFFD and to load the first instruction from that location. 
+     // force the program counter to the vector location specified in locations FFFC and FFFD
+        self.pc = self.load_u16(vectors::RESET);
+        self.p = 0b00110100;
+
+        // just to be sure
+        self.a = 0x00;
+        self.x = 0x00;
+        self.y = 0x00;
+
+        // comeback. number of cycles should be 8, byt should include 
+    }
+
+    // the internal state of the pc and io should be deterministic at the beginning.
+    // The reset line is controlled during power on initialization and is a common line which is connected to all devices in the microcomputer
+    // which have to be initialized to a known state.
+    // In the MCS650X, power on or reset control operates at two levels.
+    // First, by holding of an external line to ground, and having this external
+    //  line connected to all the devices connected to the microprocessor during power up,
+    // the entire microcomputer system is initialized to a known disabled state
+    // Second, the release of the reset line from the ground or TTL zero
+    // condition to a TTL one condition causes the microprocessor to be automatically 
+    // initialized, first by the internal hardware vector (RESET) which causes it
+    // to be pointed to a known program location (PC), and secondly by what the programmer writes as the first set of instructions
+    pub fn start(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        // While the reset line is in the low state, it can be assumed that internal registers may be initialized to any random condition; therefore,
+        // no conditions about the internal state of the microprocessor are assumed other than that the microprocessor will, one cycle after the reset line
+        // goes high, implement the following sequence:
+        self.reset();
+        // comeback. the loaded program begins in the 8th cycle
+        self.cy += 7;
+        // the first operation in any normal program will be to initialize the stack
+        // Once this is accomplished, the two non variable operations of the machine are under control.  
+        // The program counter is initialized and under
+        // programmer control and the stack is initialized and under program control.
+        Ok(())
+    }
     /// The first byte of an instruction is called the OP CODE and is coded to contain the basic operation such as LDA
     /// then it has the data necessary to allow the microprocessor to interpret the address of the data on which the operation will occur
     /// the pc will increment after picking up the opcode (executing). it will then pick up the address of data the opcode is to act on
@@ -379,3 +403,5 @@ impl ByteAccess for Six502 {
         self.bus.store_u8(addr, v);
     }
 }
+
+
