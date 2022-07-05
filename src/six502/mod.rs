@@ -72,8 +72,8 @@ pub(super) mod flags {
 // The word vector is developed from the fact that the microprocessor directly controls the memory location from which a particular operation
 // Locations FFFA through FFFF are reserved for Vector pointers for the microprocessor.
 pub(super) mod vectors {
-    pub(super) const NMI: usize = 0xfffa; // NMI (Non-Maskable Interrupt) vector, 16-bit (LB, HB)
-    pub(super) const IRQ: usize = 0xfffe; // IRQ (Interrupt Request) vector, 16-bit (LB, HB)
+    pub(super) const NMI: u16 = 0xfffa; // NMI (Non-Maskable Interrupt) vector, 16-bit (LB, HB)
+    pub(super) const IRQ: u16 = 0xfffe; // IRQ (Interrupt Request) vector, 16-bit (LB, HB)
     pub(super) const RESET: u16 = 0xfffc; // 16-bit (LB, HB)
 }
 

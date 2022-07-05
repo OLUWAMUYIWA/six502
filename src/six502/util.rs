@@ -1,12 +1,32 @@
-use super::addr_mode;
-use super::flags;
-use super::Six502;
+use super::{addr_mode, flags, Six502, vectors};
 use crate::bus::{ByteAccess, WordAccess};
 use std::ops::{Add, AddAssign};
 
 const STACK_OFFSET: u16 = 0x0100;
 
 impl Six502 {
+
+    pub(super) fn interrupt(&mut self) {
+
+    }
+
+    fn nmi(&mut self) {
+        self.push_u16(self.pc);
+        self.push_u8(self.p);
+        // set  the interrrupt disable flag
+        self.p |= flags::IRQ;
+        self.pc = self.load_u16(vectors::NMI);
+        self.cy += 7;
+    }
+
+    fn irq(&mut self) {
+        self.push_u16(self.pc);
+        self.push_u8(self.p);
+        // set  the interrrupt disable flag
+        self.p |= flags::IRQ;
+        self.pc = self.load_u16(vectors::IRQ);
+        self.cy += 7;
+    }
     pub(super) fn load_u8_bump_pc(&mut self) -> u8 {
         let addr = self.pc;
         self.pc = self.pc.wrapping_add(1);

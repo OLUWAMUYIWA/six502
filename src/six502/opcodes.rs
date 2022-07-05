@@ -1,6 +1,6 @@
 use super::util::{check_overflow, num_cy};
 use super::{addr_mode::AddressingMode, flags, Six502};
-use super::vectors::{NMI, IRQ};
+use super::vectors::{NMI, IRQ, self};
 use crate::bus::{ByteAccess, WordAccess};
 use std::ops::{BitAnd, BitOr, BitOrAssign, Shl, Shr};
 
@@ -472,15 +472,17 @@ impl Six502 {
         0
     }
 
-    // comeback
+
     // BRK initiates a software interrupt similar to a hardware interrupt (IRQ)
     pub(super) fn brk(&mut self) -> u8 {
-        let pc = self.pc;
-        self.push_u16(pc + 1);
-        self.push_u8(self.p);
+        self.push_u16(self.pc + 1); //Increase program counter by 1 before pusing on stack so computation returns to the correct place on RTI
+        // push status register with break bits set
+        self.push_u8(self.p | 0b00110000);
+        // set interrupt disable flag
         self.set_flag(flags::IRQ);
-        self.pc = self.load_u16(BRK);
-        0
+        // set the pc to the IRQ vector
+        self.pc = self.load_u16(vectors::IRQ);
+        7 // implied addressing takes two cycles. the remaining operation taes 5
     }
 
     /// retrieves the Processor Status Word (flags) and the Program Counter from the stack in that order
