@@ -12,7 +12,6 @@ use std::collections::HashMap;
 
 pub(crate) mod addr_mode;
 pub(crate) mod disasm;
-pub(crate) mod interrupt;
 mod opcodes;
 pub(crate) mod ram;
 mod util;

@@ -6,10 +6,18 @@ const STACK_OFFSET: u16 = 0x0100;
 
 impl Six502 {
 
+    /// Tthe concept of interrupt is used to signal the microprocessor that an external event has occurred and the
+    /// microprocessor should devote attention to it immediately.  
+    /// This technique accomplishes processing in which the microprocessor's program is interrupted and the event that caused the interrupt is serviced.
+
     pub(super) fn interrupt(&mut self) {
 
     }
 
+    // gives the user the ability to interrupt an interrupt
+    // used when a high priority device which cannot afford to Wait during the time interrupts are disabled (using the IRQ).  
+    // when this line goes from high to low, the microprocessor sets an internal flag  such that at the beginning of 
+    // the next instruction, no matter what the status of the interrupt disable, the microprocessor performs the interrupt sequence
     fn nmi(&mut self) {
         self.push_u16(self.pc);
         self.push_u8(self.p);

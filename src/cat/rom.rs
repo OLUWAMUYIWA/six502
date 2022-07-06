@@ -12,14 +12,15 @@ use nom::{
     number::complete::be_u8,
     Err, IResult,
 };
-
 /// https://www.nesdev.org/wiki/INES
 #[derive(Debug)]
 pub struct Rom {
     hdr: Hdr,
     trainer: Option<Vec<u8>>,
-    pub(crate) prg_rom: PagedData, // code. (16384 * x bytes)
-    pub(crate) chr_rom: PagedData, // (8192 * y bytes) character rom. used by the ppu
+    pub(super) prg_rom: PagedData, // code. (16384 * x bytes)
+    pub(super) chr_rom: PagedData, // (8192 * y bytes) character rom. used by the ppu
+    pub(super) pg_ram: PagedData,
+    pub(super) ch_ram: PagedData,
 }
 
 #[derive(Debug)]
@@ -30,6 +31,7 @@ pub struct Hdr {
     pub flags_6: Flags6,
     pub tv_format: TVFormat,
     pub mapper: u8,
+    chr_len_zero: bool,
 }
 
 pub enum Mirroring {
@@ -82,51 +84,59 @@ impl Rom {
     }
 
     fn load_hdr(input: &[u8]) -> IResult<&[u8], Hdr> {
+        // first four bytes: "NES\x1a"
         let (input, _) = tag("NES\x1a")(input)?;
-        let (input, prog_len) = be_u8(input)?;
-        let (input, chr_len) = be_u8(input)?;
-        let (input, flag_6) = be_u8(input)?;
-        let flags_6 = Flags6::from_bits(0b000001111 & flag_6).ok_or_else(|| Err::Failure(nom::error::Error::new(input, ErrorKind::Fail)))?;
+        let (input, prog_len) = be_u8(input)?; // 4th
+        let (input, chr_len) = be_u8(input)?; // 5th
+        let (input, flag_6) = be_u8(input)?;  //6th
+        let flags_6 = Flags6::from_bits(0b00001111 & flag_6) // first four flags are either set or not
+            .ok_or_else(|| Err::Failure(nom::error::Error::new(input, ErrorKind::Fail)))?;
 
             // .ok_or_else(|| (input, format!("Could not get flags from flag_6")))?;
 
-        let (input, flag_7) = be_u8(input)?;
+        let (input, flag_7) = be_u8(input)?;  //7th
         if flag_7 & 0x0C == 0x08 {
-            return Err(Err::Failure(make_error(input, ErrorKind::Fail)));
+            return Err(Err::Failure(make_error(input, ErrorKind::IsNot)));
         }
 
-        let mapper = flag_7 & 0b11110000 | (flag_6 >> 4);
+        // lower nibble of byte6 abd higher nibble of byte7
+        let mapper = (flag_6 >> 4) | flag_7 & 0b11110000 ;
 
-        let (input, len_ram_banks) = be_u8(input)?;
+        // 8th byte
+        let (input, len_ram) = be_u8(input)?;
 
-        let (input, flag_9) = be_u8(input)?;
-        let pal = flag_9 & 1;
+        let (input, flag_9) = be_u8(input)?; //9th
+        let pal = flag_9 & 0b00000001;
         let tv_format = if pal == 1 {
             TVFormat::PAL
         } else {
             TVFormat::NTSC
         };
-
+        //  the trail is the next 6 bytes
         let (input, trail) = take(6usize)(input)?;
+        // only valid if it is a bunch of null bytes
         if b"\x00\x00\x00\x00\x00" != trail {
-            return Err(Err::Failure( nom::error::Error::new(input, ErrorKind::Fail)));
+            return Err(Err::Failure( nom::error::Error::new(input, ErrorKind::IsNot)));
         }
 
         Ok((input, Hdr {
             prg_rom_size: 16384 * prog_len as usize,
             chr_rom_size: 8192 * chr_len as usize,
             flags_6,
-            prg_ram_size: 8192 * len_ram_banks as usize,
+            prg_ram_size: 8192 * len_ram as usize,
             tv_format,
             mapper,
+            chr_len_zero: chr_len == 0,
         }))
     }
 
     fn load_body<'a>(hdr: Hdr, input: &'a [u8]) -> IResult<&'a [u8], Rom> {
         let (input, trainer) =
             cond(hdr.flags_6.contains(Flags6::TRAINER_EXISTS), take(512usize))(input)?;
-        let (input, prg_rom) = take(16384usize * hdr.prg_rom_size as usize)(input)?;
-        let (input, chr_rom) = take(8192usize * hdr.chr_rom_size as usize)(input)?;
+        let (input, prg_rom) = take(hdr.prg_rom_size )(input)?;
+        let (input, chr_rom) = take(hdr.chr_rom_size )(input)?;
+        let len_chr_ram = if hdr.chr_len_zero {8192} else {0};
+        let len_pg_ram = hdr.prg_ram_size * 8192;
         Ok((
             input,
             Rom {
@@ -134,6 +144,8 @@ impl Rom {
                 trainer: trainer.map(|t| t.to_vec()),
                 prg_rom: PagedData::new(prg_rom.to_vec()),
                 chr_rom: PagedData::new(chr_rom.to_vec()),
+                pg_ram: PagedData::new(vec![0u8; len_pg_ram]),
+                ch_ram: PagedData::new(vec![0u8; len_chr_ram]),
             },
         ))
     }
@@ -145,7 +157,7 @@ impl Rom {
             let mut b_buf = Vec::<u8>::with_capacity(8 * 1024);
             rdr.read_to_end(&mut b_buf)?;
             match Rom::load_body(hdr, &b_buf) {
-                IResult::Ok((input, rom)) => Ok(rom),
+                IResult::Ok((_, rom)) => Ok(rom), // we dont need the remaining input, we discard it
                 IResult::Err(_) => Err("could not load body".into()),
             }
         } else {

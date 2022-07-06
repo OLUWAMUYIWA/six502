@@ -1,4 +1,4 @@
-use crate::rom::{Rom, Page, Kb};
+use super::rom::{Rom, Page, Kb};
 
 pub trait Mapper {
     fn load_prg_u8(&mut self, addr: u16) -> Result<u8, Box<dyn std::error::Error>>;

@@ -4,11 +4,9 @@ mod bus;
 mod ctrl;
 mod nes;
 pub(crate) mod ppu;
-mod rom;
 mod six502;
 mod io;
-pub(crate) mod mapper;
-
+pub(crate) mod cat;
 
 macro_rules! impl_deref_mut {
 	($($struct_name:ident {$field:ident}),+ $(,)?) => {

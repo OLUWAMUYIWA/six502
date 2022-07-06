@@ -1,5 +1,5 @@
-use super::six502::{interrupt::Interrupt, ram::Ram};
-use crate::{apu::Apu, ctrl::Joypad, ppu::Ppu, rom::Rom};
+use super::six502::{ram::Ram};
+use crate::{apu::Apu, ctrl::Joypad, ppu::Ppu, cat::rom::Rom};
 
 //https://www.nesdev.org/wiki/CPU_memory_map
 
@@ -43,7 +43,6 @@ pub struct DataBus {
     pub(crate) ppu: Ppu,
     pub joypad_1: Joypad,
     pub joypad_2: Joypad,
-    pub(crate) interrupt: Interrupt,
     pub cycles: u64,
 }
 
@@ -112,7 +111,6 @@ impl Default for DataBus {
             ppu: Default::default(), 
             joypad_1: Default::default(), 
             joypad_2: Default::default(), 
-            interrupt: Default::default(), 
             cycles: Default::default() }
     }
 }
