@@ -1,12 +1,6 @@
 #![allow(unused_imports, dead_code)]
-pub(crate) mod apu;
 mod bus;
-mod ctrl;
-mod nes;
-pub(crate) mod ppu;
 mod six502;
-mod io;
-pub(crate) mod cat;
 
 macro_rules! impl_deref_mut {
 	($($struct_name:ident {$field:ident}),+ $(,)?) => {

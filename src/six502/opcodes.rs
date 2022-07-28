@@ -628,21 +628,21 @@ impl Six502 {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::six502::Six502;
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+//     use crate::six502::Six502;
 
-    fn test_adc() {
-        let mut cpu = Six502 {
-            a: 0x05,
-            x: 0x01,
-            y: 0x01,
-            pc: 0x0000,
-            s: 0xaa,
-            cy: 4,
-            p: 0x00,
-            bus: Default::default(),
-        };
-    }
-}
+//     fn test_adc() {
+//         let mut cpu = Six502 {
+//             a: 0x05,
+//             x: 0x01,
+//             y: 0x01,
+//             pc: 0x0000,
+//             s: 0xaa,
+//             cy: 4,
+//             p: 0x00,
+//             bus: Default::default(),
+//         };
+//     }
+// }

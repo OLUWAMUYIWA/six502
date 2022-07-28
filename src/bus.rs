@@ -1,5 +1,5 @@
-use super::six502::{ram::Ram};
-use crate::{apu::Apu, ctrl::Joypad, ppu::Ppu, cat::rom::Rom};
+use super::six502::ram::Ram;
+use crate::cat::rom::Rom;
 
 //https://www.nesdev.org/wiki/CPU_memory_map
 
@@ -30,7 +30,7 @@ impl<T: ByteAccess> WordAccess for T {
 
 /// The DataBus
 /// data has to transfer between the accumulator and the internal registers of the microprocessor and outside sources by means of passing through
-///  the microprocessor to 8 lines called the data bus. The outside sources include (in our case) the program 
+///  the microprocessor to 8 lines called the data bus. The outside sources include (in our case) the program
 /// which controls the microprocessor, and the actual communications to the world through input/output ports.
 ///! The duty of the data bus is to facilitate exchange of data between memory and the processor's internal registers.
 /// I/o operationS on this type of microprocessor are accomplished by reading and writing registers which
@@ -53,8 +53,6 @@ impl DataBus {
         }
     }
 }
-
-
 
 // [memory map spec](https://8bitworkshop.com/blog/platforms/nes/)
 // | ---------------------------------------------------------
@@ -104,13 +102,14 @@ impl ByteAccess for DataBus {
 
 impl Default for DataBus {
     fn default() -> Self {
-        Self { 
-            ram: Default::default(), 
-            rom: Default::default(), 
-            apu: Default::default(), 
-            ppu: Default::default(), 
-            joypad_1: Default::default(), 
-            joypad_2: Default::default(), 
-            cycles: Default::default() }
+        Self {
+            ram: Default::default(),
+            rom: Default::default(),
+            apu: Default::default(),
+            ppu: Default::default(),
+            joypad_1: Default::default(),
+            joypad_2: Default::default(),
+            cycles: Default::default(),
+        }
     }
 }
