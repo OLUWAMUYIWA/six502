@@ -1,5 +1,4 @@
 use super::six502::ram::Ram;
-use crate::cat::rom::Rom;
 
 //https://www.nesdev.org/wiki/CPU_memory_map
 
@@ -38,11 +37,11 @@ impl<T: ByteAccess> WordAccess for T {
 #[derive(Debug)]
 pub struct DataBus {
     pub ram: Ram,
-    pub rom: Rom,
-    pub(crate) apu: Apu,
-    pub(crate) ppu: Ppu,
-    pub joypad_1: Joypad,
-    pub joypad_2: Joypad,
+    // pub rom: Rom,
+    // pub(crate) apu: Apu,
+    // pub(crate) ppu: Ppu,
+    // pub joypad_1: Joypad,
+    // pub joypad_2: Joypad,
     pub cycles: u64,
 }
 
@@ -78,11 +77,11 @@ impl ByteAccess for DataBus {
     fn load_u8(&mut self, addr: u16) -> u8 {
         match addr {
             0x0000..=0x1FFF => self.ram.load_u8(addr),
-            0x2000..=0x3FFF => self.ppu.load_u8(addr), //comeback to check bounds
-            0x4015 => self.apu.load_u8(addr),
-            0x4016 => self.joypad_1.load_u8(),
-            0x4017 => self.joypad_2.load_u8(),
-            0x4018..=0xFFFF => self.rom.load_u8(addr),
+            // 0x2000..=0x3FFF => self.ppu.load_u8(addr), //comeback to check bounds
+            // 0x4015 => self.apu.load_u8(addr),
+            // 0x4016 => self.joypad_1.load_u8(),
+            // 0x4017 => self.joypad_2.load_u8(),
+            // 0x4018..=0xFFFF => self.rom.load_u8(addr),
             addr => panic!("Address {} not addressable", addr),
         }
     }
@@ -90,11 +89,11 @@ impl ByteAccess for DataBus {
     fn store_u8(&mut self, addr: u16, v: u8) {
         match addr {
             0x0000..=0x1FFF => self.ram.store_u8(addr, v),
-            0x2000..=0x3FFF => self.ppu.store_u8(addr, v),
-            0x4015 => self.apu.store_u8(addr),
-            0x4016 => self.joypad_1.store_u8(v),
-            0x4017 => self.joypad_2.store_u8(v),
-            0x4018..=0xFFFF => self.rom.store_u8(addr),
+            // 0x2000..=0x3FFF => self.ppu.store_u8(addr, v),
+            // 0x4015 => self.apu.store_u8(addr),
+            // 0x4016 => self.joypad_1.store_u8(v),
+            // 0x4017 => self.joypad_2.store_u8(v),
+            // 0x4018..=0xFFFF => self.rom.store_u8(addr),
             addr => panic!("Address {} not addressable", addr),
         }
     }
@@ -104,11 +103,11 @@ impl Default for DataBus {
     fn default() -> Self {
         Self {
             ram: Default::default(),
-            rom: Default::default(),
-            apu: Default::default(),
-            ppu: Default::default(),
-            joypad_1: Default::default(),
-            joypad_2: Default::default(),
+            // rom: Default::default(),
+            // apu: Default::default(),
+            // ppu: Default::default(),
+            // joypad_1: Default::default(),
+            // joypad_2: Default::default(),
             cycles: Default::default(),
         }
     }
