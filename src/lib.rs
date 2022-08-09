@@ -1,6 +1,7 @@
 #![allow(unused_imports, dead_code)]
 mod bus;
 mod six502;
+mod prog;
 
 macro_rules! impl_deref_mut {
 	($($struct_name:ident {$field:ident}),+ $(,)?) => {
