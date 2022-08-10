@@ -3,7 +3,7 @@ use std::{
     error::Error,
     fs::{self, File, OpenOptions},
     io::{self, Write},
-    path::{Path}, ops::{Deref, DerefMut},
+    path::Path, ops::{Deref, DerefMut},
 };
 
 #[derive(Debug)]
@@ -26,8 +26,10 @@ impl Default for Mem {
     fn default() -> Self {
         Self { 
             zp: [0u8;256], 
-            stack: [0u8; 256], 
-            ..Default::default()
+            stack: [0u8; 256],
+            x: Default::default(),
+            special: Default::default(), 
+            
         }
     }
 }
@@ -63,6 +65,13 @@ impl Mem {
         self.zp[addr as usize] = v;
     }
 
+    pub(crate) fn store_x(&mut self, addr: u16, v: u8) {
+        self.x[((addr-0xFFFA) as usize)] = v; // offset into the 6-bye array
+    }
+
+    pub(crate) fn load_x(&mut self, addr: u16) -> u8 {
+        self.x[((addr-0xFFFA) as usize)]
+    }
 
     pub fn dump<T: AsRef<Path>>(&self, path: T) -> Result<(), Box<dyn Error>> {
         let mut f = OpenOptions::new().write(true).create(true).open(path)?;
