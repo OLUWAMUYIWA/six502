@@ -524,6 +524,8 @@ impl Six502 {
     /// If the branch is normally taken but it does not across the page boundary, assume 3 cycles for the branch.
     /// If the branch crosses over a page boundary, then assume 4 cycles for the  branch.
     pub fn branch(&mut self, flag: u8, cond: bool) -> u8 {
+
+        // self.cy+=1;
         // relative addressing. load just one byte.
         // casting the u8 as an i8, and from there to u16 helps create the twos compliment of the number with length 16bits
         let off = self.load_u8_bump_pc() as i8 as u16;

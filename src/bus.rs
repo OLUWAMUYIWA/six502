@@ -1,6 +1,79 @@
 use super::six502::ram::Ram;
+use std::{
+    error::Error,
+    fs::{self, File, OpenOptions},
+    io::{self, Write},
+    path::{Path}, ops::{Deref, DerefMut},
+};
 
-//https://www.nesdev.org/wiki/CPU_memory_map
+#[derive(Debug)]
+pub(crate) struct Mem {
+    zp: [u8; 0x100],
+    stack: [u8; 0x100],
+    x: Vec<u8>, // 65018 max. unreserved. contaains program and unused
+    // At the high end of memory, the last six bytes of the last page (page 255) of
+    // memory are used by the hardware to contain special addresses.
+    //https://people.cs.umass.edu/~verts/cmpsci201/spr_2004/Lecture_02_2004-01-30_The_6502_processor.pdf
+    // IRQ, NMI, RESET. each two bytes each
+    special: [u8; 0x06],
+}
+const MEM_SIZE: usize = 1024 * 64;
+const MAX_PROG: usize = 65018;
+
+
+impl Default for Mem {
+
+    fn default() -> Self {
+        Self { 
+            zp: [0u8;256], 
+            stack: [0u8; 256], 
+            ..Default::default()
+        }
+    }
+}
+
+impl Mem {
+    pub fn open<T: AsRef<Path>>(path: T) -> Result<Self, Box<dyn Error>> {
+        let b = fs::read(path)?;
+        if b.len() > MAX_PROG {
+            return Err(Box::new(io::Error::new(io::ErrorKind::InvalidData, "Program larger than 652 allows")));
+        };
+
+        Ok(Self {
+            zp: [0u8; 0x100],
+            stack: [0u8; 0x100],
+            x: b,
+            special: [0u8; 6],
+        })
+    }
+
+    pub(super) fn load_zp(&self, addr: u16) -> u8 {
+        self.zp[addr as usize]
+    }
+
+    pub(super) fn load_stack(&self, addr: u16) -> u8 {
+        self.stack[addr as usize]
+    }
+
+    pub(super) fn store_zp(&mut self, addr: u16, v: u8) {
+        self.zp[addr as usize] = v;
+    }
+
+    pub(super) fn store_stack(&mut self, addr: u16, v: u8) {
+        self.zp[addr as usize] = v;
+    }
+
+
+    pub fn dump<T: AsRef<Path>>(&self, path: T) -> Result<(), Box<dyn Error>> {
+        let mut f = OpenOptions::new().write(true).create(true).open(path)?;
+        f.write_all(&self.zp)?;
+        f.write_all(&self.stack)?;
+        f.write_all(&self.x)?;
+        f.write_all(&self.special)?;
+        Ok(())
+    }
+}
+
 
 /// ByteAccess handles the loading and storage of u8 values. An implementor is an addressable member of the NES
 /// The memory address can be regarded as 256 pages (each page defined by the high order byte) of 256 memory locations (bytes) per page.
@@ -34,15 +107,26 @@ impl<T: ByteAccess> WordAccess for T {
 ///! The duty of the data bus is to facilitate exchange of data between memory and the processor's internal registers.
 /// I/o operationS on this type of microprocessor are accomplished by reading and writing registers which
 /// actually represent connections to physical devices or to physical pins  which connect to physical devices.
-#[derive(Debug)]
-pub struct DataBus {
-    pub ram: Ram,
-    // pub rom: Rom,
-    // pub(crate) apu: Apu,
-    // pub(crate) ppu: Ppu,
-    // pub joypad_1: Joypad,
-    // pub joypad_2: Joypad,
-    pub cycles: u64,
+#[derive(Debug, Default)]
+pub(crate) struct DataBus {
+    pub(crate) mem: Mem,
+    pub(crate) cycles: u64,
+}
+
+impl Deref for DataBus {
+
+    type Target = Mem;
+
+    fn deref(&self) -> &Self::Target {
+        &self.mem
+    }
+}
+
+impl DerefMut for DataBus {
+
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut  self.mem
+    }
 }
 
 impl DataBus {
@@ -53,62 +137,25 @@ impl DataBus {
     }
 }
 
-// [memory map spec](https://8bitworkshop.com/blog/platforms/nes/)
-// | ---------------------------------------------------------
-// | Start  |  End    |  Description                         |
-// | ---------------------------------------------------------
-// | $0000  |  $00FF  |  RAM, zero-page                      |
-// | $0100  |  $01FF  |  RAM, CPU stack                      |
-// | $0200  |  $07FF  |  RAM, general-purpose                |
-// | $0800  |  $1FFF  |  (mirror of $0000-$07FF)             |
-// | $2000  |  $2007  |  PPU registers                       |
-// | $2008  |  $3FFF  |  (mirror of $2000-$2007)             |
-// | $4000  |  $400F  |  APU registers                       |
-// | $4010  |  $4017  |  DMC, joystick, APU registers        |
-// | $4020  |  $5FFF  |  Cartridge (maybe mapper registers)  |
-// | $6000  |  $7FFF  |  Cartridge RAM (maybe battery-backed)|
-// | $8000  |  $FFFF  |  PRG ROM (maybe bank switched)       |
-// | $FFFA  |  $FFFB  |  NMI vector                          |
-// | $FFFC  |  $FFFD  |  Reset vector                        |
-// | $FFFE  |  $FFFF  |  BRK vector                          |
-// | ---------------------------------------------------------
 
 impl ByteAccess for DataBus {
     fn load_u8(&mut self, addr: u16) -> u8 {
         match addr {
-            0x0000..=0x1FFF => self.ram.load_u8(addr),
-            // 0x2000..=0x3FFF => self.ppu.load_u8(addr), //comeback to check bounds
-            // 0x4015 => self.apu.load_u8(addr),
-            // 0x4016 => self.joypad_1.load_u8(),
-            // 0x4017 => self.joypad_2.load_u8(),
-            // 0x4018..=0xFFFF => self.rom.load_u8(addr),
+            a @ 0x0000..=0x00FF=> self.load_zp(a),
+            0x0100..=0x01ff=> self.load_stack(addr),
+            // 0x0000..=0x1FFF => self.ram.load_u8(addr),
+
             addr => panic!("Address {} not addressable", addr),
         }
     }
 
     fn store_u8(&mut self, addr: u16, v: u8) {
         match addr {
-            0x0000..=0x1FFF => self.ram.store_u8(addr, v),
-            // 0x2000..=0x3FFF => self.ppu.store_u8(addr, v),
-            // 0x4015 => self.apu.store_u8(addr),
-            // 0x4016 => self.joypad_1.store_u8(v),
-            // 0x4017 => self.joypad_2.store_u8(v),
-            // 0x4018..=0xFFFF => self.rom.store_u8(addr),
+            a @ 0x0000..=0x00ff => self.store_zp(a, v),
+            a @ 0x0100..=0x01ff => self.store_stack(a, v),
+            // 0x0000..=0x1FFF => self.ram.store_u8(addr, v),
             addr => panic!("Address {} not addressable", addr),
         }
     }
 }
 
-impl Default for DataBus {
-    fn default() -> Self {
-        Self {
-            ram: Default::default(),
-            // rom: Default::default(),
-            // apu: Default::default(),
-            // ppu: Default::default(),
-            // joypad_1: Default::default(),
-            // joypad_2: Default::default(),
-            cycles: Default::default(),
-        }
-    }
-}

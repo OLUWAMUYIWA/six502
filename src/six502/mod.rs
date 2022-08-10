@@ -93,7 +93,7 @@ pub struct Six502 {
     cy: u64,
     p: u8, // flags
     // Sixteen bits of address allow access to 65,536 memory locations, each of which, in the MCS650X family, consists of 8 bits of data
-    pub bus: DataBus,
+    pub(crate) bus: DataBus,
 }
 
 const CYCLES: [u8; 256] = [
