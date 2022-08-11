@@ -1,4 +1,4 @@
-#![allow(dead_code, unused_variables, unused_imports)]
+#![allow(dead_code, unused_variables, unused_imports, unused_parens)]
 
 use super::flags;
 use super::Six502;
@@ -40,9 +40,6 @@ pub enum AddressingMode {
     // OPC #$BB: operand is the byte BB, as is.
     Immediate,
 
-    // OPC: operand is implied, not specified inline
-    // Implied
-
     // OPC ($LLHH): operand is address; effective address is contents of word at address: C.w($HHLL)
     // Indirect, // Indirect was excluded because it yields a u16 value and is only useful in the `jmpi` instruction
 
@@ -62,8 +59,11 @@ pub enum AddressingMode {
     // OPC $LL,Y    operand is zeropage address; effective address is address incremented by Y without carry
     ZP_Y_Idxd,
 
-    // Omitted because no computation is reqd to get the address. The instruction is just one byte. Addressin is implicit
+    // The instruction is just one byte. Addressing is implicit
     Implied,
+
+    // my cause page crossing or not
+    Relative,
 }
 
 impl AddressingMode {
@@ -71,20 +71,52 @@ impl AddressingMode {
     /// indicating if there is a page cross while loading the byte.
     pub(super) fn load(&self, cpu: &mut Six502) -> (u8, bool) {
         match self {
-            AddressingMode::Accumulator => (cpu.a, false),
+            AddressingMode::Accumulator => {
+                cpu.atom(|c| {
+                    // comeback
+                });
+                (cpu.a, false)
+            }
             AddressingMode::Absolute => {
-                let addr = cpu.load_u16_bump_pc();
-                (cpu.load_u8(addr), false)
+                let (mut p1, mut p2, mut v) = (0, 0, 0);
+                cpu.atom(|c| p1 = c.load_u8_bump_pc());
+                cpu.atom(|c| p2 = c.load_u8_bump_pc());
+                cpu.atom(|c| {
+                    let addr = u16::from_le_bytes([p1, p2]);
+                    v = c.load_u8(addr);
+                });
+
+                // let addr = cpu.load_u16_bump_pc();
+                (v, false)
             }
             AddressingMode::Abs_X_Idxd => {
-                // with carry
-                let op = cpu.load_u16_bump_pc();
+                let (mut p1, mut p2, mut v) = (0, 0, 0);
+                let mut over = false;
+                cpu.atom(|c| p1 = c.load_u8_bump_pc());
+                let x = cpu.x;
+                cpu.atom(|c| {
+                    p2 = c.load_u8_bump_pc();
+                    (p1, over) = p1.overflowing_add(x);
+                });
 
-                // check if it'll overflow into the zero page
-                let lb_op = op as u8;
-                let (_, carry) = lb_op.overflowing_add(cpu.x);
+                if over {
+                    cpu.atom(|c| {
+                        p1 += 1;
+                        let addr = u16::from_le_bytes([p1, p2]);
+                        v = c.load_u8(addr);
+                    });
+                } else {
+                    let addr = u16::from_le_bytes([p1, p2]);
+                    v = cpu.load_u8(addr);
+                };
 
-                (cpu.load_u8(op + (cpu.x as u16)), carry)
+                // let op = cpu.load_u16_bump_pc();
+
+                // // check if it'll overflow into the zero page
+                // let lb_op = op as u8;
+                // let (_, carry) = lb_op.overflowing_add(cpu.x);
+
+                (v, false)
             }
             AddressingMode::Abs_Y_Idxd => {
                 let op = cpu.load_u16_bump_pc();
@@ -95,16 +127,22 @@ impl AddressingMode {
                 (cpu.load_u8(op + (cpu.y as u16)), carry)
             }
 
-            AddressingMode::Immediate => (cpu.load_u8_bump_pc(), false),
-            // AddressingMode::Indirect => {
-            //     let op = cpu.load_u16_bump_pc();
-            //     let lo = cpu.load_u8(op);
-            //     let hi = cpu.load_u8((op & 0xff00) | ((op + 1) & 0x00ff));
-            //     (u16::from_le_bytes([lo, hi]), false)
-            // }
+            AddressingMode::Immediate => {
+                let mut v = 0;
+                cpu.atom(|c| v = c.load_u8_bump_pc());
+                (v, false)
+            }
             AddressingMode::ZP => {
-                let addr = cpu.load_u8_bump_pc();
-                (cpu.load_u8(addr as u16), false)
+                let (mut addr, mut v) = (0, 0);
+                cpu.atom(|c| {
+                    addr = c.load_u8_bump_pc();
+                });
+                cpu.atom(|c| {
+                    let addr = addr as u16;
+                    v = c.load_u8(addr);
+                });
+                // let addr = cpu.load_u8_bump_pc();
+                (v, false)
             }
             //without carry
             AddressingMode::ZP_X_Idxd => {
@@ -141,11 +179,26 @@ impl AddressingMode {
                 (cpu.load_u8(eff_addr.wrapping_add(y as u16)), carry) // might cross page
             }
             AddressingMode::Implied => {
-                // fetch
                 let mut v: u8 = 0;
-                cpu.tick(|cpu| {
+                cpu.atom(|cpu| {
                     v = cpu.load_u8_bump_pc();
                 });
+
+                (0, false)
+            }
+            AddressingMode::Relative => {
+                let (mut off) = (0);
+                cpu.atom(|c| {
+                    off = c.load_u8_bump_pc() as i8 as u16;
+                });
+                let mut overflowed = false;
+                // comeback to deal with page transiions
+                cpu.atom(|c| {
+                    (c.pc, overflowed) = c.pc.overflowing_add(off);
+                });
+                if overflowed {
+                    cpu.tick();
+                }
                 (0, false)
             }
         }
@@ -228,6 +281,7 @@ impl AddressingMode {
                 carry // might cross page
             }
             AddressingMode::Implied => todo!(),
+            AddressingMode::Relative => todo!(),
         }
     }
 }

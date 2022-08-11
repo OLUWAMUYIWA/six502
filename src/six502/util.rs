@@ -131,8 +131,13 @@ impl Six502 {
         0
     }
 
-    pub(super) fn tick<F: FnMut(&mut Six502)>(&mut self, mut f: F) {
+    // atom does any number of ops and ticks once
+    pub(super) fn atom<F: FnMut(&mut Six502)>(&mut self, mut f: F) {
         f(self);
+        self.cy += 1;
+    }
+
+    pub(super) fn tick(&mut self) {
         self.cy += 1;
     }
 }
@@ -157,42 +162,6 @@ pub(super) fn check_overflow(a: u8, b: u8, res: u8) -> bool {
     // 2. both the result and either of the operands are inverse of each other
     (a ^ res) & (b ^ res) & 0x80 != 0
 }
-
-// pub fn load_u8(&mut self, addr: u16) -> u8 {
-//     match addr {
-//         0x000..=0x1fff => self.ram.load_u8(addr),
-//         0x2000..=0x3fff => todo!("ppu"),
-//         0x4015 => todo!("apu"),
-//         0x4016 => todo!("controller"),
-//         0x4018 => todo!("apu"),
-//         0x4020..=0xffff => todo!("mapper"),
-//         _ => panic!("invalid load from: {:02x}", addr),
-//     }
-// }
-
-// pub fn load_u16(&mut self, addr: u16) -> u16 {
-//     u16::from_le_bytes([self.load_u8(addr), self.load_u8(addr + 1)])
-// }
-
-// pub fn load_u16_no_carry(&self, addr: u8) -> u16 {
-//     u16::from_le_bytes([self.load_u8(addr as u16), self.load_u8(addr as u16)])
-// }
-
-// pub fn store_u8(&mut self, addr: u16, val: u8) {
-//     match addr {
-//         0x0000..=0x1fff => self.ram.store_u8(addr, val),
-//         0x2000..=0x3fff => todo!("ppu"),
-//         0x4016 => todo!("controller"),
-//         0x4000..=0x4017 => todo!("apu"),
-//         0x4020..=0xFFFF => todo!("mapper"),
-//         _ => panic!("invalid store to {:02x}", addr),
-//     }
-// }
-
-// pub fn store_u16(&mut self, addr: u16, val: u16) {
-//     self.store_u8(addr, val as u8);
-//     self.store_u8(addr + 1, (val >> 8) as u8);
-// }
 
 // Source: https://web.archive.org/web/20210428044647/http://www.obelisk.me.uk/6502/reference.html
 // pub enum OpCode {
