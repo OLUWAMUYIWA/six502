@@ -16,7 +16,6 @@ mod opcodes;
 pub(crate) mod ram;
 mod util;
 
-
 // |   |   |   |   |   |   |   |   |
 // | N | V |   | B | D | I | Z | C |     PROCESSOR STATUS REGISTER
 // |   |   |   |   |   |   |   |   |
@@ -45,7 +44,7 @@ pub(super) mod flags {
     // automatically set by the microprocessor during any data movement or calculation operation when the 8 bits of results of the operation are 0
     // uses: interna check by the processor when decrementing, so as not go go below .
     // affected by:  ADC, AND, ASL, BIT, CMP, CPY, CPX, DEC, DEX, DEY, EOR, INC, INX, INY, LDA, LDX, LDY, LSR, ORA, PLA, PLP, ROL, RTI, SBC, TAX, TAY, TXA, TYA.
-    pub const ZERO: u8 = 1 << 1;                        
+    pub const ZERO: u8 = 1 << 1;
     // interrupt disable flag
     // the purpose is to disable the effects of the interrupt request pin
     // IRQ is set by the microprocessor during reset and interrupt commands
@@ -67,7 +66,7 @@ pub(super) mod flags {
 
 // SYSTEM VECTORS
 // A vector pointer consists of a program counter high and program counter low value which, under control of
-// the microprocessor, is loaded in the program counter when certain external events occur. 
+// the microprocessor, is loaded in the program counter when certain external events occur.
 // The word vector is developed from the fact that the microprocessor directly controls the memory location from which a particular operation
 // Locations FFFA through FFFF are reserved for Vector pointers for the microprocessor.
 pub(super) mod vectors {
@@ -76,7 +75,10 @@ pub(super) mod vectors {
     pub(super) const RESET: u16 = 0xfffc; // 16-bit (LB, HB)
 }
 
-pub struct Six502 {
+pub struct Six502<T>
+where
+    T: FnMut(&mut Self, AddressingMode) -> u8,
+{
     // the major use for the accumulator is transferring data from memory to the accumulator or from the accumulator to memory.
     // mathematical amd logical operations can then be done to data inside the accumulator. It is where intermediate values are normally  stored
     a: u8,
@@ -94,32 +96,29 @@ pub struct Six502 {
     p: u8, // flags
     // Sixteen bits of address allow access to 65,536 memory locations, each of which, in the MCS650X family, consists of 8 bits of data
     pub(crate) bus: DataBus,
+
+    curr_op: T,
 }
 
 const CYCLES: [u8; 256] = [
     //    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, A, B, C, D, E, F  // lo bit
-    /*0*/ 7, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2, 2, 4, 4, 6, 6, 
-    /*1*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
-    /*2*/ 6, 6, 2, 8, 3, 3, 5, 5, 4, 2, 2, 2, 4, 4, 6, 6, 
-    /*3*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7, 
-    /*4*/ 6, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2, 2, 3, 4, 6, 6,
-    /*5*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7, 
-    /*6*/ 6, 6, 2, 8, 3, 3, 5, 5, 4, 2, 2, 2, 5, 4, 6, 6, 
-    /*7*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
-    /*8*/ 2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4, 
-    /*9*/ 2, 6, 2, 6, 4, 4, 4, 4, 2, 5, 2, 5, 5, 5, 5, 5, 
-    /*A*/ 2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4,
-    /*B*/ 2, 5, 2, 5, 4, 4, 4, 4, 2, 4, 2, 4, 4, 4, 4, 4, 
-    /*C*/ 2, 6, 2, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6, 
-    /*D*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
-    /*E*/ 2, 6, 3, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6, 
-    /*F*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+    /*0*/ 7, 6, 2, 8, 3,
+    3, 5, 5, 3, 2, 2, 2, 4, 4, 6, 6, /*1*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+    /*2*/ 6, 6, 2, 8, 3, 3, 5, 5, 4, 2, 2, 2, 4, 4, 6, 6, /*3*/ 2, 5, 2, 8, 4, 4, 6, 6,
+    2, 4, 2, 7, 4, 4, 7, 7, /*4*/ 6, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2, 2, 3, 4, 6, 6,
+    /*5*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7, /*6*/ 6, 6, 2, 8, 3, 3, 5, 5,
+    4, 2, 2, 2, 5, 4, 6, 6, /*7*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+    /*8*/ 2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4, /*9*/ 2, 6, 2, 6, 4, 4, 4, 4,
+    2, 5, 2, 5, 5, 5, 5, 5, /*A*/ 2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4,
+    /*B*/ 2, 5, 2, 5, 4, 4, 4, 4, 2, 4, 2, 4, 4, 4, 4, 4, /*C*/ 2, 6, 2, 8, 3, 3, 5, 5,
+    2, 2, 2, 2, 4, 4, 6, 6, /*D*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+    /*E*/ 2, 6, 3, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6, /*F*/ 2, 5, 2, 8, 4, 4, 6, 6,
+    2, 4, 2, 7, 4, 4, 7, 7,
     // hi bit
 ];
 
-impl Six502 {
-
-    pub(crate) fn new() -> Self {
+impl<T: FnMut(&mut Self, AddressingMode) -> u8> Six502<T> {
+    pub(crate) fn new(f: T) -> Self {
         Self {
             a: 0,
             x: 0,
@@ -129,6 +128,7 @@ impl Six502 {
             cy: 0,
             p: 0x24,
             bus: DataBus::new(),
+            curr_op: f,
         }
     }
 
@@ -137,10 +137,10 @@ impl Six502 {
     /// program counter.  It is for this initial setting of the program counter to a fixed location in the restart vector location specified by the micro-
     /// processor programmer that the reset line in the microprocessor is primarily used.
     pub(super) fn reset(&mut self) {
-     // There are two major facts to remember about initialization.  One, the only automatic operations of the microprocessor during reset are to turn
-     // on the interrupt disable bit and to force the program counter to the vector location specified in locations 
-     // FFFC and FFFD and to load the first instruction from that location. 
-     // force the program counter to the vector location specified in locations FFFC and FFFD
+        // There are two major facts to remember about initialization.  One, the only automatic operations of the microprocessor during reset are to turn
+        // on the interrupt disable bit and to force the program counter to the vector location specified in locations
+        // FFFC and FFFD and to load the first instruction from that location.
+        // force the program counter to the vector location specified in locations FFFC and FFFD
         self.pc = self.load_u16(vectors::RESET);
         self.p = 0b00110100;
 
@@ -149,7 +149,7 @@ impl Six502 {
         self.x = 0x00;
         self.y = 0x00;
 
-        // comeback. number of cycles should be 8, byt should include 
+        // comeback. number of cycles should be 8, byt should include
     }
 
     // the internal state of the pc and io should be deterministic at the beginning.
@@ -160,7 +160,7 @@ impl Six502 {
     //  line connected to all the devices connected to the microprocessor during power up,
     // the entire microcomputer system is initialized to a known disabled state
     // Second, the release of the reset line from the ground or TTL zero
-    // condition to a TTL one condition causes the microprocessor to be automatically 
+    // condition to a TTL one condition causes the microprocessor to be automatically
     // initialized, first by the internal hardware vector (RESET) which causes it
     // to be pointed to a known program location (PC), and secondly by what the programmer writes as the first set of instructions
     pub fn start(&mut self) -> Result<(), Box<dyn std::error::Error>> {
@@ -171,7 +171,7 @@ impl Six502 {
         // comeback. the loaded program begins in the 8th cycle
         self.cy += 7;
         // the first operation in any normal program will be to initialize the stack
-        // Once this is accomplished, the two non variable operations of the machine are under control.  
+        // Once this is accomplished, the two non variable operations of the machine are under control.
         // The program counter is initialized and under
         // programmer control and the stack is initialized and under program control.
         Ok(())
@@ -379,21 +379,20 @@ impl Six502 {
             0xf8 => self.sed(), // implied
 
             // no-op
-            0xea => self.nop(),
+            0xea => self.nop(Implied),
 
             _ => unimplemented!("op not unimplemented: {}", op),
         };
-        self.cy = self.cy
+        self.cy = self
+            .cy
             .wrapping_add(CYCLES[op as usize] as u64)
             .wrapping_add(page_cross as u64);
 
         Ok(())
     }
-
-   
 }
 
-impl ByteAccess for Six502 {
+impl<T: FnMut(&mut Self, AddressingMode) -> u8> ByteAccess for Six502<T> {
     fn load_u8(&mut self, addr: u16) -> u8 {
         self.bus.load_u8(addr)
     }
@@ -402,5 +401,3 @@ impl ByteAccess for Six502 {
         self.bus.store_u8(addr, v);
     }
 }
-
-

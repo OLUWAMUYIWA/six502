@@ -1,13 +1,13 @@
 use super::util::{check_overflow, num_cy};
+use super::vectors::{self, IRQ, NMI};
 use super::{addr_mode::AddressingMode, flags, Six502};
-use super::vectors::{NMI, IRQ, self};
 use crate::bus::{ByteAccess, WordAccess};
 use std::ops::{BitAnd, BitOr, BitOrAssign, Shl, Shr};
 
 const BRK: u16 = 0xfffe;
 
 // load/store ops
-impl Six502 {
+impl<T: FnMut(&mut Self, AddressingMode) -> u8> Six502<T> {
     /// load accumulator with memory. data is transferred from memory into the accumulator
     /// zero flag is set if the acc is zero, otherwise resets
     //  negative flag is set if bit 7 of the accumulator is a 1, otherwise resets
@@ -59,7 +59,7 @@ impl Six502 {
 }
 
 // comparisons
-impl Six502 {
+impl<T: FnMut(&mut Self, AddressingMode) -> u8> Six502<T> {
     // util for compare operations
     // reg is the register the value v (loaded from memory) will be subtracted from.
     fn compare(&mut self, reg: u8, v: u8) {
@@ -109,7 +109,7 @@ impl Six502 {
 
 // register transfers
 // these ops make use of implied addressing, and are one byte instructions
-impl Six502 {
+impl<T: FnMut(&mut Self, AddressingMode) -> u8> Six502<T> {
     /// tax transfers accumulator into x register, updating the z and n flags based on the value of a
     pub(super) fn tax(&mut self) -> u8 {
         self.x = self.a;
@@ -162,7 +162,7 @@ impl Six502 {
 
 // stack ops
 // single byte instructions. addressing mode implied
-impl Six502 {
+impl<T: FnMut(&mut Self, AddressingMode) -> u8> Six502<T> {
     /// transfers the current value of the accumulator the next location on the stack, automatically decrementing the stack to
     /// point to the next empty location.
     pub(super) fn pha(&mut self) -> u8 {
@@ -200,7 +200,7 @@ impl Six502 {
 }
 
 // logical ops
-impl Six502 {
+impl<T: FnMut(&mut Self, AddressingMode) -> u8> Six502<T> {
     /// The AND instruction performs a bit-by-bit AND operation and stores the result back in the accumulator
     /// Addressing modes: Immediate; Absolute; Zero Page; Absolute,X; Absolute,Y; Zero Page,X; Indexed Indirect; and Indirect Indexed.
     // affects z and n flags
@@ -241,7 +241,7 @@ impl Six502 {
 // In unsigned arithmetic, we need to watch the carry flag to detect errors. The overflow flag is not useful for unsigned ops
 // In signed arithmetic, we need to watch the overflow flag to detect errors. The sign flag is not useful for signed ops
 // the programmer makes this decision basd on what they want. the cpu knows nothing about their intents. it justs sets the flag accordingly
-impl Six502 {
+impl<T: FnMut(&mut Self, AddressingMode) -> u8> Six502<T> {
     /// Add Memory to Accumulator with Carry
     /// This instruction adds the value of memory and carry from the previous operation to the value of the accumulator and stores the
     /// result in the accumulator.
@@ -323,7 +323,7 @@ impl Six502 {
 }
 
 //incrs and decrs
-impl Six502 {
+impl<T: FnMut(&mut Self, AddressingMode) -> u8> Six502<T> {
     pub(super) fn inc(&mut self, mode: AddressingMode) -> u8 {
         let (v, cross) = mode.load(self);
         let v = v.wrapping_add(1);
@@ -380,7 +380,8 @@ impl Six502 {
 }
 
 // shifts
-impl Six502 {
+
+impl<T: FnMut(&mut Self, AddressingMode) -> u8> Six502<T> {
     pub(super) fn rol(&mut self, mode: AddressingMode) -> u8 {
         let (b, cross) = mode.load(self);
         let mut res: u8 = b.shl(1);
@@ -431,7 +432,7 @@ impl Six502 {
 }
 
 // jumps and calls
-impl Six502 {
+impl<T: FnMut(&mut Self, AddressingMode) -> u8> Six502<T> {
     const BRK_VECTOR: u16 = 0xfffe;
 
     /// jump with absolute addressing
@@ -472,11 +473,10 @@ impl Six502 {
         0
     }
 
-
     // BRK initiates a software interrupt similar to a hardware interrupt (IRQ)
     pub(super) fn brk(&mut self) -> u8 {
         self.push_u16(self.pc + 1); //Increase program counter by 1 before pusing on stack so computation returns to the correct place on RTI
-        // push status register with break bits set
+                                    // push status register with break bits set
         self.push_u8(self.p | 0b00110000);
         // set interrupt disable flag
         self.set_flag(flags::IRQ);
@@ -488,15 +488,15 @@ impl Six502 {
     /// retrieves the Processor Status Word (flags) and the Program Counter from the stack in that order
     /// The status register is pulled with the break flag and bit 5 ignored. Then PC is pulled from the stack.
     /// All interrupts end with an RTI
-    /// Because the interrupt disable had to be off for an interrupt request to have been honored, 
-    /// the return from interrupt which loads the processor status from before the interrupt occured has the effect of 
+    /// Because the interrupt disable had to be off for an interrupt request to have been honored,
+    /// the return from interrupt which loads the processor status from before the interrupt occured has the effect of
     /// clearing the interrupt disable bit.
     /// There is no automatic save of any of the other registers in the microprocessor.  Because the interrupt occurred to allow data to be trans-
-    /// ferred using the microprocessor, the programmer must save the various internal registers at the time the interrupt is taken 
+    /// ferred using the microprocessor, the programmer must save the various internal registers at the time the interrupt is taken
     /// and restore them prior to returning from the interrupt. This is done on the stack
     pub(super) fn rti(&mut self) -> u8 {
         let flags = self.pull_u8(); // pop the cpu flags from the stack
-        // set flag
+                                    // set flag
         self.set_flag(flags);
         // ignore break flag
         self.clear_flag(flags::BREAK);
@@ -518,13 +518,12 @@ impl Six502 {
 // This is to reduce the number of bytes needed for branching instructions, in effect reducing cpu load.
 // In relative addressing, we add the value in the memory location following the OPCODE to the program counter.  This allows us to
 // specify a new program counter location with only two bytes, one for the OPCODE and one for the value to be added.
-impl Six502 {
+impl<T: FnMut(&mut Self, AddressingMode) -> u8> Six502<T> {
     /// base routine for branching. cond parameter states that you wan the flag to be either set/unset
     /// If a branch is normally not taken, assume 2 cycles for the branch.
     /// If the branch is normally taken but it does not across the page boundary, assume 3 cycles for the branch.
     /// If the branch crosses over a page boundary, then assume 4 cycles for the  branch.
     pub fn branch(&mut self, flag: u8, cond: bool) -> u8 {
-
         // self.cy+=1;
         // relative addressing. load just one byte.
         // casting the u8 as an i8, and from there to u16 helps create the twos compliment of the number with length 16bits
@@ -589,7 +588,7 @@ impl Six502 {
 
 // status flag changes
 // none of these ops have side effect of affecting other flags
-impl Six502 {
+impl<T: FnMut(&mut Self, AddressingMode) -> u8> Six502<T> {
     /// resets the carry flag to a 0
     pub(super) fn clc(&mut self) -> u8 {
         self.clear_flag(flags::CARRY);

@@ -69,7 +69,11 @@ pub enum AddressingMode {
 impl AddressingMode {
     /// load loads a byte from memory based on the addressing mode. It returns a tuple; the byte being fetched, and a boolean
     /// indicating if there is a page cross while loading the byte.
-    pub(super) fn load(&self, cpu: &mut Six502) -> (u8, bool) {
+    pub(super) fn load<F>(&self, cpu: &mut Six502<F>) -> (u8, bool)
+    where
+        F: FnMut(&mut Six502<F>, AddressingMode) -> u8,
+        // T: F,
+    {
         match self {
             AddressingMode::Accumulator => {
                 cpu.atom(|c| {
@@ -179,11 +183,10 @@ impl AddressingMode {
                 (cpu.load_u8(eff_addr.wrapping_add(y as u16)), carry) // might cross page
             }
             AddressingMode::Implied => {
-                let mut v: u8 = 0;
-                cpu.atom(|cpu| {
-                    v = cpu.load_u8_bump_pc();
-                });
-
+                // basically, nothin happens here, except tha the opcode fetched in last cycle is decoded.
+                // so we just tick. the new opcode is decoded, and the pc os not incremented
+                cpu.tick();
+                // in the next cycle, the old opcode is executed and the opcode ignored in the above is decoded
                 (0, false)
             }
             AddressingMode::Relative => {
@@ -204,7 +207,11 @@ impl AddressingMode {
         }
     }
 
-    pub(super) fn store(&self, cpu: &mut Six502, v: u8) -> bool {
+    pub(super) fn store<F>(&self, cpu: &mut Six502<F>, v: u8) -> bool
+    where
+        F: FnMut(&mut Six502<F>, AddressingMode) -> u8,
+        // T: F,
+    {
         match self {
             AddressingMode::Accumulator => {
                 cpu.a = v;
