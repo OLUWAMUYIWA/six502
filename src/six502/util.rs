@@ -65,7 +65,7 @@ impl<T: FnMut(&mut Self, AddressingMode) -> u8> Six502<T> {
     //  memory location in which data will be directly stored.
     // operations which put data on the stack cause the pointer to be decremented automatically
     pub(super) fn push_u8(&mut self, b: u8) {
-        let addr = u16::from(STACK_OFFSET + self.s as u16);
+        let addr = STACK_OFFSET + self.s as u16;
         self.store_u8(addr, b);
         self.s = self.s.wrapping_sub(1);
     }
@@ -73,20 +73,20 @@ impl<T: FnMut(&mut Self, AddressingMode) -> u8> Six502<T> {
     // operations which pull data from the stack cause the pointer to be incremented automatically
     // adds 1 to the current value of the stack pointer and uses it to address the stack
     pub(super) fn pull_u8(&mut self) -> u8 {
-        let addr = u16::from(STACK_OFFSET + self.s as u16) + 1;
+        let addr = STACK_OFFSET + self.s as u16 + 1;
         let v = self.load_u8(addr);
         self.s = self.s.wrapping_add(1);
         v
     }
 
     pub(super) fn push_u16(&mut self, w: u16) {
-        let addr = u16::from(STACK_OFFSET + (self.s - 1) as u16);
+        let addr = STACK_OFFSET + (self.s - 1) as u16;
         self.store_u16(addr, w);
         self.s = self.s.wrapping_sub(2);
     }
 
     pub(super) fn pull_u16(&mut self) -> u16 {
-        let addr = u16::from(STACK_OFFSET + self.s as u16) + 1;
+        let addr = STACK_OFFSET + self.s as u16 + 1;
         let v = self.load_u16(addr);
         self.s = self.s.wrapping_add(2);
         v
@@ -130,7 +130,7 @@ impl<T: FnMut(&mut Self, AddressingMode) -> u8> Six502<T> {
     }
 
     // misc opcode impls
-    pub(super) fn nop(&mut self, mode: AddressingMode) -> u8 {
+    pub(super) fn nop(&mut self, _mode: AddressingMode) -> u8 {
         0
     }
 

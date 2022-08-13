@@ -183,7 +183,7 @@ impl AddressingMode {
                 (cpu.load_u8(eff_addr.wrapping_add(y as u16)), carry) // might cross page
             }
             AddressingMode::Implied => {
-                // basically, nothin happens here, except tha the opcode fetched in last cycle is decoded.
+                // basically, nothing happens here, except tha the opcode fetched in last cycle is decoded.
                 // so we just tick. the new opcode is decoded, and the pc os not incremented
                 cpu.tick();
                 // in the next cycle, the old opcode is executed and the opcode ignored in the above is decoded

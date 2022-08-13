@@ -533,7 +533,8 @@ impl<T: FnMut(&mut Self, AddressingMode) -> u8> Six502<T> {
         if cond && self.is_flag_set(flag) {
             self.pc = self.pc.wrapping_add(off);
             num_cy += 1; // branch was taken. branching truly occured
-        } else if !cond && !self.is_flag_set(flag) {
+        } else {
+            // !cond && !self.is_flag_set(flag)
             self.pc = self.pc.wrapping_add(off);
             num_cy += 1; // branch was taken. branching truly occured
         }
