@@ -1,5 +1,5 @@
 use super::Six502;
-use crate::bus::{ByteAccess, WordAccess};
+use crate::{bus::{ByteAccess, WordAccess}, macros::impl_deref_mut};
 use core::panic;
 use std::ops::{Deref, DerefMut, Index};
 
@@ -8,19 +8,8 @@ pub struct Ram {
     array: [u8; 0x800],
 }
 
-impl Deref for Ram {
-    type Target = [u8; 0x800];
+impl_deref_mut!(Ram {array});
 
-    fn deref(&self) -> &Self::Target {
-        &self.array
-    }
-}
-
-impl DerefMut for Ram {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.array
-    }
-}
 
 impl Default for Ram {
 

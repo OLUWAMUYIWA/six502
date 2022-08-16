@@ -1,3 +1,5 @@
+use crate::macros::impl_deref_mut;
+
 use super::six502::ram::Ram;
 use std::{
     error::Error,

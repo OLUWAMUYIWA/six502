@@ -7,7 +7,7 @@ use std::ops::{BitAnd, BitOr, BitOrAssign, Shl, Shr};
 const BRK: u16 = 0xfffe;
 
 // load/store ops
-impl<T: FnMut(&mut Self, AddressingMode) -> u8> Six502<T> {
+impl Six502 {
     /// load accumulator with memory. data is transferred from memory into the accumulator
     /// zero flag is set if the acc is zero, otherwise resets
     //  negative flag is set if bit 7 of the accumulator is a 1, otherwise resets
@@ -59,7 +59,7 @@ impl<T: FnMut(&mut Self, AddressingMode) -> u8> Six502<T> {
 }
 
 // comparisons
-impl<T: FnMut(&mut Self, AddressingMode) -> u8> Six502<T> {
+impl Six502 {
     // util for compare operations
     // reg is the register the value v (loaded from memory) will be subtracted from.
     fn compare(&mut self, reg: u8, v: u8) {
@@ -109,7 +109,7 @@ impl<T: FnMut(&mut Self, AddressingMode) -> u8> Six502<T> {
 
 // register transfers
 // these ops make use of implied addressing, and are one byte instructions
-impl<T: FnMut(&mut Self, AddressingMode) -> u8> Six502<T> {
+impl Six502 {
     /// tax transfers accumulator into x register, updating the z and n flags based on the value of a
     pub(super) fn tax(&mut self) -> u8 {
         self.x = self.a;
@@ -162,7 +162,7 @@ impl<T: FnMut(&mut Self, AddressingMode) -> u8> Six502<T> {
 
 // stack ops
 // single byte instructions. addressing mode implied
-impl<T: FnMut(&mut Self, AddressingMode) -> u8> Six502<T> {
+impl Six502 {
     /// transfers the current value of the accumulator the next location on the stack, automatically decrementing the stack to
     /// point to the next empty location.
     pub(super) fn pha(&mut self) -> u8 {
@@ -200,7 +200,7 @@ impl<T: FnMut(&mut Self, AddressingMode) -> u8> Six502<T> {
 }
 
 // logical ops
-impl<T: FnMut(&mut Self, AddressingMode) -> u8> Six502<T> {
+impl Six502 {
     /// The AND instruction performs a bit-by-bit AND operation and stores the result back in the accumulator
     /// Addressing modes: Immediate; Absolute; Zero Page; Absolute,X; Absolute,Y; Zero Page,X; Indexed Indirect; and Indirect Indexed.
     // affects z and n flags
@@ -241,7 +241,7 @@ impl<T: FnMut(&mut Self, AddressingMode) -> u8> Six502<T> {
 // In unsigned arithmetic, we need to watch the carry flag to detect errors. The overflow flag is not useful for unsigned ops
 // In signed arithmetic, we need to watch the overflow flag to detect errors. The sign flag is not useful for signed ops
 // the programmer makes this decision basd on what they want. the cpu knows nothing about their intents. it justs sets the flag accordingly
-impl<T: FnMut(&mut Self, AddressingMode) -> u8> Six502<T> {
+impl Six502 {
     /// Add Memory to Accumulator with Carry
     /// This instruction adds the value of memory and carry from the previous operation to the value of the accumulator and stores the
     /// result in the accumulator.
@@ -323,7 +323,7 @@ impl<T: FnMut(&mut Self, AddressingMode) -> u8> Six502<T> {
 }
 
 //incrs and decrs
-impl<T: FnMut(&mut Self, AddressingMode) -> u8> Six502<T> {
+impl Six502 {
     pub(super) fn inc(&mut self, mode: AddressingMode) -> u8 {
         let (v, cross) = mode.load(self);
         let v = v.wrapping_add(1);
@@ -381,7 +381,7 @@ impl<T: FnMut(&mut Self, AddressingMode) -> u8> Six502<T> {
 
 // shifts
 
-impl<T: FnMut(&mut Self, AddressingMode) -> u8> Six502<T> {
+impl Six502 {
     pub(super) fn rol(&mut self, mode: AddressingMode) -> u8 {
         let (b, cross) = mode.load(self);
         let mut res: u8 = b.shl(1);
@@ -432,7 +432,7 @@ impl<T: FnMut(&mut Self, AddressingMode) -> u8> Six502<T> {
 }
 
 // jumps and calls
-impl<T: FnMut(&mut Self, AddressingMode) -> u8> Six502<T> {
+impl Six502 {
     const BRK_VECTOR: u16 = 0xfffe;
 
     /// jump with absolute addressing
@@ -518,7 +518,7 @@ impl<T: FnMut(&mut Self, AddressingMode) -> u8> Six502<T> {
 // This is to reduce the number of bytes needed for branching instructions, in effect reducing cpu load.
 // In relative addressing, we add the value in the memory location following the OPCODE to the program counter.  This allows us to
 // specify a new program counter location with only two bytes, one for the OPCODE and one for the value to be added.
-impl<T: FnMut(&mut Self, AddressingMode) -> u8> Six502<T> {
+impl Six502 {
     /// base routine for branching. cond parameter states that you wan the flag to be either set/unset
     /// If a branch is normally not taken, assume 2 cycles for the branch.
     /// If the branch is normally taken but it does not across the page boundary, assume 3 cycles for the branch.
@@ -589,7 +589,7 @@ impl<T: FnMut(&mut Self, AddressingMode) -> u8> Six502<T> {
 
 // status flag changes
 // none of these ops have side effect of affecting other flags
-impl<T: FnMut(&mut Self, AddressingMode) -> u8> Six502<T> {
+impl Six502 {
     /// resets the carry flag to a 0
     pub(super) fn clc(&mut self) -> u8 {
         self.clear_flag(flags::CARRY);

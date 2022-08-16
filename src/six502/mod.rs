@@ -75,9 +75,7 @@ pub(super) mod vectors {
     pub(super) const RESET: u16 = 0xfffc; // 16-bit (LB, HB)
 }
 
-pub struct Six502<T>
-where
-    T: FnMut(&mut Self, AddressingMode) -> u8,
+pub struct Six502
 {
     // the major use for the accumulator is transferring data from memory to the accumulator or from the accumulator to memory.
     // mathematical amd logical operations can then be done to data inside the accumulator. It is where intermediate values are normally  stored
@@ -97,30 +95,51 @@ where
     // Sixteen bits of address allow access to 65,536 memory locations, each of which, in the MCS650X family, consists of 8 bits of data
     pub(crate) bus: DataBus,
 
+}
+
+struct Op<T>
+where T:  FnMut(& mut Six502, AddressingMode) -> u8,
+{
     curr_op: T,
     curr_op_num: u8,
     curr_op_str: &'static str,
 }
 
+impl< T> Default for Op< T> 
+where T: FnMut(&mut Six502, AddressingMode) -> u8, 
+{
+    fn default() -> Self {
+        Self { 
+            curr_op: Six502::nop, 
+            curr_op_num: 0, 
+            curr_op_str: "" 
+        }
+    }
+}
+
 const CYCLES: [u8; 256] = [
     //    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, A, B, C, D, E, F  // lo bit
-    /*0*/ 7, 6, 2, 8, 3,
-    3, 5, 5, 3, 2, 2, 2, 4, 4, 6, 6, /*1*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
-    /*2*/ 6, 6, 2, 8, 3, 3, 5, 5, 4, 2, 2, 2, 4, 4, 6, 6, /*3*/ 2, 5, 2, 8, 4, 4, 6, 6,
-    2, 4, 2, 7, 4, 4, 7, 7, /*4*/ 6, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2, 2, 3, 4, 6, 6,
-    /*5*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7, /*6*/ 6, 6, 2, 8, 3, 3, 5, 5,
-    4, 2, 2, 2, 5, 4, 6, 6, /*7*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
-    /*8*/ 2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4, /*9*/ 2, 6, 2, 6, 4, 4, 4, 4,
-    2, 5, 2, 5, 5, 5, 5, 5, /*A*/ 2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4,
-    /*B*/ 2, 5, 2, 5, 4, 4, 4, 4, 2, 4, 2, 4, 4, 4, 4, 4, /*C*/ 2, 6, 2, 8, 3, 3, 5, 5,
-    2, 2, 2, 2, 4, 4, 6, 6, /*D*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
-    /*E*/ 2, 6, 3, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6, /*F*/ 2, 5, 2, 8, 4, 4, 6, 6,
-    2, 4, 2, 7, 4, 4, 7, 7,
+    /*0*/ 7, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2, 2, 4, 4, 6, 6, 
+    /*1*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+    /*2*/ 6, 6, 2, 8, 3, 3, 5, 5, 4, 2, 2, 2, 4, 4, 6, 6, 
+    /*3*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7, 
+    /*4*/ 6, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2, 2, 3, 4, 6, 6,
+    /*5*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7, 
+    /*6*/ 6, 6, 2, 8, 3, 3, 5, 5, 4, 2, 2, 2, 5, 4, 6, 6, 
+    /*7*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+    /*8*/ 2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4, 
+    /*9*/ 2, 6, 2, 6, 4, 4, 4, 4, 2, 5, 2, 5, 5, 5, 5, 5, 
+    /*A*/ 2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4,
+    /*B*/ 2, 5, 2, 5, 4, 4, 4, 4, 2, 4, 2, 4, 4, 4, 4, 4, 
+    /*C*/ 2, 6, 2, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6, 
+    /*D*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+    /*E*/ 2, 6, 3, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6, 
+    /*F*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
     // hi bit
 ];
 
-impl<T: FnMut(&mut Self, AddressingMode) -> u8> Six502<T> {
-    pub(crate) fn new(f: T) -> Self {
+impl Six502 {
+    pub(crate) fn new() -> Self {
         Self {
             a: 0,
             x: 0,
@@ -130,9 +149,6 @@ impl<T: FnMut(&mut Self, AddressingMode) -> u8> Six502<T> {
             cy: 0,
             p: 0x24,
             bus: DataBus::new(),
-            curr_op: f,
-            curr_op_num: 0,
-            curr_op_str: "",
         }
     }
 
@@ -184,213 +200,214 @@ impl<T: FnMut(&mut Self, AddressingMode) -> u8> Six502<T> {
     // in 6502, as is in any processor, opcode decoding is a different process from opcode feching.
     // I chose to model this system to respect that difference
     pub(super) fn decode_op(&mut self) {
-        self.curr_op = match self.curr_op_num {
-            0xa1 => Six502::lda, //(XIdxd_Indirect),
-            0xa5 => Six502::lda, //(ZP),
-            0xa9 => Six502::lda, //(Immediate),
-            0xad => Six502::lda, //(Absolute),
-            0xb1 => Six502::lda, //(Indirect_Y_Idxd),
-            0xb5 => Six502::lda, //(ZP_X_Idxd),
-            0xb9 => Six502::lda, //(Abs_Y_Idxd),
-            0xbd => Six502::lda, //(Abs_X_Idxd),
+        // self.curr_op = Six502::lda;
+        // self.curr_op = match self.curr_op_num {
+        //     0xa1 => Six502::lda, //(XIdxd_Indirect),
+        //     0xa5 => Six502::lda, //(ZP),
+        //     0xa9 => Six502::lda, //(Immediate),
+        //     0xad => Six502::lda, //(Absolute),
+        //     0xb1 => Six502::lda, //(Indirect_Y_Idxd),
+        //     0xb5 => Six502::lda, //(ZP_X_Idxd),
+        //     0xb9 => Six502::lda, //(Abs_Y_Idxd),
+        //     0xbd => Six502::lda, //(Abs_X_Idxd),
 
-            0xa2 => Six502::ldx, //(Immediate),
-            0xa6 => Six502::ldx, //(ZP),
-            0xae => Six502::ldx, //(Absolute),
-            0xb6 => Six502::ldx, //(ZP_Y_Idxd),
-            0xbe => Six502::ldx, //(Abs_Y_Idxd),
+        //     0xa2 => Six502::ldx, //(Immediate),
+        //     0xa6 => Six502::ldx, //(ZP),
+        //     0xae => Six502::ldx, //(Absolute),
+        //     0xb6 => Six502::ldx, //(ZP_Y_Idxd),
+        //     0xbe => Six502::ldx, //(Abs_Y_Idxd),
 
-            0xa0 => Six502::ldy, //(Immediate),
-            0xa4 => Six502::ldy, //(ZP),
-            0xac => Six502::ldy, //(Absolute),
-            0xb4 => Six502::ldy, //(ZP_X_Idxd),
-            0xbc => Six502::ldy, //(Abs_X_Idxd),
+        //     0xa0 => Six502::ldy, //(Immediate),
+        //     0xa4 => Six502::ldy, //(ZP),
+        //     0xac => Six502::ldy, //(Absolute),
+        //     0xb4 => Six502::ldy, //(ZP_X_Idxd),
+        //     0xbc => Six502::ldy, //(Abs_X_Idxd),
 
-            0x81 => Six502::sta, //(XIdxd_Indirect),
-            0x85 => Six502::sta, //(ZP),
-            0x8d => Six502::sta, //(Absolute),
-            0x91 => Six502::sta, //(Indirect_Y_Idxd),
-            0x95 => Six502::sta, //(ZP_X_Idxd),
-            0x99 => Six502::sta, //(Abs_Y_Idxd),
-            0x9d => Six502::sta, //(Abs_X_Idxd),
+        //     0x81 => Six502::sta, //(XIdxd_Indirect),
+        //     0x85 => Six502::sta, //(ZP),
+        //     0x8d => Six502::sta, //(Absolute),
+        //     0x91 => Six502::sta, //(Indirect_Y_Idxd),
+        //     0x95 => Six502::sta, //(ZP_X_Idxd),
+        //     0x99 => Six502::sta, //(Abs_Y_Idxd),
+        //     0x9d => Six502::sta, //(Abs_X_Idxd),
 
-            0x86 => Six502::stx, //(ZP),
-            0x8e => Six502::stx, //(Absolute),
-            0x96 => Six502::stx, //(ZP_Y_Idxd),
+        //     0x86 => Six502::stx, //(ZP),
+        //     0x8e => Six502::stx, //(Absolute),
+        //     0x96 => Six502::stx, //(ZP_Y_Idxd),
 
-            0x84 => Six502::sty, //(ZP),
-            0x8c => Six502::sty, //(Absolute),
-            0x94 => Six502::sty, //(ZP_X_Idxd),
+        //     0x84 => Six502::sty, //(ZP),
+        //     0x8c => Six502::sty, //(Absolute),
+        //     0x94 => Six502::sty, //(ZP_X_Idxd),
 
-            // comparisons
-            0xc1 => Six502::cmp, //(XIdxd_Indirect),
-            0xc5 => Six502::cmp, //(ZP),
-            0xc9 => Six502::cmp, //(Immediate),
-            0xcd => Six502::cmp, //(Absolute),
-            0xd1 => Six502::cmp, //(Indirect_Y_Idxd),
-            0xd5 => Six502::cmp, //(ZP_X_Idxd),
-            0xd9 => Six502::cmp, //(Abs_Y_Idxd),
-            0xdd => Six502::cmp, //(Abs_X_Idxd),
+        //     // comparisons
+        //     0xc1 => Six502::cmp, //(XIdxd_Indirect),
+        //     0xc5 => Six502::cmp, //(ZP),
+        //     0xc9 => Six502::cmp, //(Immediate),
+        //     0xcd => Six502::cmp, //(Absolute),
+        //     0xd1 => Six502::cmp, //(Indirect_Y_Idxd),
+        //     0xd5 => Six502::cmp, //(ZP_X_Idxd),
+        //     0xd9 => Six502::cmp, //(Abs_Y_Idxd),
+        //     0xdd => Six502::cmp, //(Abs_X_Idxd),
 
-            0xe0 => Six502::cpx, //(Immediate),
-            0xe4 => Six502::cpx, //(ZP),
-            0xec => Six502::cpx, //(Absolute),
+        //     0xe0 => Six502::cpx, //(Immediate),
+        //     0xe4 => Six502::cpx, //(ZP),
+        //     0xec => Six502::cpx, //(Absolute),
 
-            0xc0 => Six502::cpy, //(Immediate),
-            0xc4 => Six502::cpy, //(ZP),
-            0xcc => Six502::cpy, //(Absolute),
+        //     0xc0 => Six502::cpy, //(Immediate),
+        //     0xc4 => Six502::cpy, //(ZP),
+        //     0xcc => Six502::cpy, //(Absolute),
 
-            // transfers
-            0xaa => Six502::tax, //(),
-            0xa8 => Six502::tay, //(),
-            0x8a => Six502::txa, //(),
-            0x98 => Six502::tya, //(),
-            0x9a => Six502::txs, //(),
-            0xba => Six502::tsx, //(),
+        //     // transfers
+        //     0xaa => Six502::tax, //(),
+        //     0xa8 => Six502::tay, //(),
+        //     0x8a => Six502::txa, //(),
+        //     0x98 => Six502::tya, //(),
+        //     0x9a => Six502::txs, //(),
+        //     0xba => Six502::tsx, //(),
 
-            // stack ops
-            0x08 => Six502::php, //(), //implied addressing
-            0x28 => Six502::plp, //(), //implied addressing
-            0x48 => Six502::pha, //(), //implied addressing
-            0x68 => Six502::pla, //(), //implied addressing
+        //     // stack ops
+        //     0x08 => Six502::php, //(), //implied addressing
+        //     0x28 => Six502::plp, //(), //implied addressing
+        //     0x48 => Six502::pha, //(), //implied addressing
+        //     0x68 => Six502::pla, //(), //implied addressing
 
-            // logical ops
-            0x21 => Six502::and, //(XIdxd_Indirect),
-            0x25 => Six502::and, //(ZP),
-            0x29 => Six502::and, //(Immediate),
-            0x2d => Six502::and, //(Absolute),
-            0x35 => Six502::and, //(ZP_X_Idxd),
-            0x31 => Six502::and, //(Indirect_Y_Idxd),
-            0x39 => Six502::and, //(Abs_Y_Idxd),
-            0x3d => Six502::and, //(Abs_X_Idxd),
+        //     // logical ops
+        //     0x21 => Six502::and, //(XIdxd_Indirect),
+        //     0x25 => Six502::and, //(ZP),
+        //     0x29 => Six502::and, //(Immediate),
+        //     0x2d => Six502::and, //(Absolute),
+        //     0x35 => Six502::and, //(ZP_X_Idxd),
+        //     0x31 => Six502::and, //(Indirect_Y_Idxd),
+        //     0x39 => Six502::and, //(Abs_Y_Idxd),
+        //     0x3d => Six502::and, //(Abs_X_Idxd),
 
-            0x01 => Six502::ora, //(XIdxd_Indirect),
-            0x05 => Six502::ora, //(ZP),
-            0x09 => Six502::ora, //(Immediate),
-            0x0d => Six502::ora, //(Absolute),
-            0x11 => Six502::ora, //(Indirect_Y_Idxd),
-            0x15 => Six502::ora, //(ZP_X_Idxd),
-            0x1d => Six502::ora, //(Abs_X_Idxd),
-            0x19 => Six502::ora, //(Abs_Y_Idxd),
+        //     0x01 => Six502::ora, //(XIdxd_Indirect),
+        //     0x05 => Six502::ora, //(ZP),
+        //     0x09 => Six502::ora, //(Immediate),
+        //     0x0d => Six502::ora, //(Absolute),
+        //     0x11 => Six502::ora, //(Indirect_Y_Idxd),
+        //     0x15 => Six502::ora, //(ZP_X_Idxd),
+        //     0x1d => Six502::ora, //(Abs_X_Idxd),
+        //     0x19 => Six502::ora, //(Abs_Y_Idxd),
 
-            0x41 => Six502::eor, //(XIdxd_Indirect),
-            0x45 => Six502::eor, //(ZP),
-            0x49 => Six502::eor, //(Immediate),
-            0x4d => Six502::eor, //(Absolute),
-            0x51 => Six502::eor, //(Indirect_Y_Idxd),
-            0x55 => Six502::eor, //(ZP_X_Idxd),
-            0x5d => Six502::eor, //(Abs_X_Idxd),
-            0x59 => Six502::eor, //(Abs_Y_Idxd),
+        //     0x41 => Six502::eor, //(XIdxd_Indirect),
+        //     0x45 => Six502::eor, //(ZP),
+        //     0x49 => Six502::eor, //(Immediate),
+        //     0x4d => Six502::eor, //(Absolute),
+        //     0x51 => Six502::eor, //(Indirect_Y_Idxd),
+        //     0x55 => Six502::eor, //(ZP_X_Idxd),
+        //     0x5d => Six502::eor, //(Abs_X_Idxd),
+        //     0x59 => Six502::eor, //(Abs_Y_Idxd),
 
-            // bit test
-            0x24 => {
-                Six502::bit //(ZP) //bit test
-            }
-            0x2c => {
-                Six502::bit //(Absolute) // bit test
-            }
+        //     // bit test
+        //     0x24 => {
+        //         Six502::bit //(ZP) //bit test
+        //     }
+        //     0x2c => {
+        //         Six502::bit //(Absolute) // bit test
+        //     }
 
-            // arithmetic ops
-            0x61 => Six502::adc, //(XIdxd_Indirect),
-            0x65 => Six502::adc, //(ZP),
-            0x69 => Six502::adc, //(Immediate),
-            0x6d => Six502::adc, //(Absolute),
-            0x71 => Six502::adc, //(Indirect_Y_Idxd),
-            0x75 => Six502::adc, //(ZP_X_Idxd),
-            0x79 => Six502::adc, //(Abs_Y_Idxd),
-            0x7d => Six502::adc, //(Abs_X_Idxd),
+        //     // arithmetic ops
+        //     0x61 => Six502::adc, //(XIdxd_Indirect),
+        //     0x65 => Six502::adc, //(ZP),
+        //     0x69 => Six502::adc, //(Immediate),
+        //     0x6d => Six502::adc, //(Absolute),
+        //     0x71 => Six502::adc, //(Indirect_Y_Idxd),
+        //     0x75 => Six502::adc, //(ZP_X_Idxd),
+        //     0x79 => Six502::adc, //(Abs_Y_Idxd),
+        //     0x7d => Six502::adc, //(Abs_X_Idxd),
 
-            0xe1 => Six502::sbc, //(XIdxd_Indirect),
-            0xe5 => Six502::sbc, //(ZP),
-            0xe9 => Six502::sbc, //(Immediate),
-            0xed => Six502::sbc, //(Absolute),
-            0xf1 => Six502::sbc, //(Indirect_Y_Idxd),
-            0xf5 => Six502::sbc, //(ZP_X_Idxd),
-            0xf9 => Six502::sbc, //(Abs_Y_Idxd),
-            0xfd => Six502::sbc, //(Abs_X_Idxd),
+        //     0xe1 => Six502::sbc, //(XIdxd_Indirect),
+        //     0xe5 => Six502::sbc, //(ZP),
+        //     0xe9 => Six502::sbc, //(Immediate),
+        //     0xed => Six502::sbc, //(Absolute),
+        //     0xf1 => Six502::sbc, //(Indirect_Y_Idxd),
+        //     0xf5 => Six502::sbc, //(ZP_X_Idxd),
+        //     0xf9 => Six502::sbc, //(Abs_Y_Idxd),
+        //     0xfd => Six502::sbc, //(Abs_X_Idxd),
 
-            //incrs and decrs
-            0xe6 => Six502::inc, //(ZP),
-            0xee => Six502::inc, //(Absolute),
-            0xf6 => Six502::inc, //(ZP_X_Idxd),
-            0xfe => Six502::inc, //(Abs_X_Idxd),
+        //     //incrs and decrs
+        //     0xe6 => Six502::inc, //(ZP),
+        //     0xee => Six502::inc, //(Absolute),
+        //     0xf6 => Six502::inc, //(ZP_X_Idxd),
+        //     0xfe => Six502::inc, //(Abs_X_Idxd),
 
-            0xc6 => Six502::dec, //(ZP),
-            0xce => Six502::dec, //(Absolute),
-            0xd6 => Six502::dec, //(ZP_X_Idxd),
-            0xde => Six502::dec, //(Abs_X_Idxd),
+        //     0xc6 => Six502::dec, //(ZP),
+        //     0xce => Six502::dec, //(Absolute),
+        //     0xd6 => Six502::dec, //(ZP_X_Idxd),
+        //     0xde => Six502::dec, //(Abs_X_Idxd),
 
-            0xe8 => Six502::inx, //(),
-            0xca => Six502::dex, //(),
-            0xc8 => Six502::iny, //(),
-            0x88 => Six502::dey, //(),
+        //     0xe8 => Six502::inx, //(),
+        //     0xca => Six502::dex, //(),
+        //     0xc8 => Six502::iny, //(),
+        //     0x88 => Six502::dey, //(),
 
-            // shifts
-            0x26 => Six502::rol, //(ZP),
-            0x2a => Six502::rol, //(Accumulator),
-            0x2e => Six502::rol, //(Absolute),
-            0x36 => Six502::rol, //(ZP_X_Idxd),
-            0x3e => Six502::rol, //(Abs_X_Idxd),
+        //     // shifts
+        //     0x26 => Six502::rol, //(ZP),
+        //     0x2a => Six502::rol, //(Accumulator),
+        //     0x2e => Six502::rol, //(Absolute),
+        //     0x36 => Six502::rol, //(ZP_X_Idxd),
+        //     0x3e => Six502::rol, //(Abs_X_Idxd),
 
-            0x66 => Six502::ror, //(ZP),
-            0x6a => Six502::ror, //(Accumulator),
-            0x6e => Six502::ror, //(Absolute),
-            0x76 => Six502::ror, //(ZP_X_Idxd),
-            0x7e => Six502::ror, //(Abs_X_Idxd),
+        //     0x66 => Six502::ror, //(ZP),
+        //     0x6a => Six502::ror, //(Accumulator),
+        //     0x6e => Six502::ror, //(Absolute),
+        //     0x76 => Six502::ror, //(ZP_X_Idxd),
+        //     0x7e => Six502::ror, //(Abs_X_Idxd),
 
-            0x06 => Six502::asl, //(ZP),
-            0x0e => Six502::asl, //(Absolute),
-            0x0a => Six502::asl, //(Accumulator),
-            0x16 => Six502::asl, //(ZP_X_Idxd),
-            0x1e => Six502::asl, //(Abs_X_Idxd),
+        //     0x06 => Six502::asl, //(ZP),
+        //     0x0e => Six502::asl, //(Absolute),
+        //     0x0a => Six502::asl, //(Accumulator),
+        //     0x16 => Six502::asl, //(ZP_X_Idxd),
+        //     0x1e => Six502::asl, //(Abs_X_Idxd),
 
-            0x4a => Six502::lsr, //(Accumulator),
-            0x46 => Six502::lsr, //(ZP),
-            0x4e => Six502::lsr, //(Absolute),
-            0x56 => Six502::lsr, //(ZP_X_Idxd),
-            0x5e => Six502::lsr, //(Abs_X_Idxd),
+        //     0x4a => Six502::lsr, //(Accumulator),
+        //     0x46 => Six502::lsr, //(ZP),
+        //     0x4e => Six502::lsr, //(Absolute),
+        //     0x56 => Six502::lsr, //(ZP_X_Idxd),
+        //     0x5e => Six502::lsr, //(Abs_X_Idxd),
 
-            // jumps and calls
-            0x4c => Six502::jmp,          //(),          // absolute
-            0x6c => Six502::jmp_indirect, //(), // indirect
+        //     // jumps and calls
+        //     0x4c => Six502::jmp,          //(),          // absolute
+        //     0x6c => Six502::jmp_indirect, //(), // indirect
 
-            0x20 => Six502::jsr, //(), // absolute
-            0x60 => Six502::rts, //(), // implied. In an implied instruction, the data and/or destination is mandatory for the instruction
-            0x00 => Six502::brk, //(), // implied
-            0x40 => Six502::rti, //(), // implied
+        //     0x20 => Six502::jsr, //(), // absolute
+        //     0x60 => Six502::rts, //(), // implied. In an implied instruction, the data and/or destination is mandatory for the instruction
+        //     0x00 => Six502::brk, //(), // implied
+        //     0x40 => Six502::rti, //(), // implied
 
-            // branches
-            0x10 => Six502::bpl, //(), // relative The byte after the opcode is the branch offset.
-            0x30 => Six502::bmi, //(), // relative
-            0x50 => Six502::bvc, //(), // relative
-            0x70 => Six502::bvs, //(), // relative
-            0x90 => Six502::bcc, //(), // relative
-            0xb0 => Six502::bcs, //(), // relative
-            0xd0 => Six502::bne, //(), // relative
-            0xf0 => Six502::beq, //(), // relative
+        //     // branches
+        //     0x10 => Six502::bpl, //(), // relative The byte after the opcode is the branch offset.
+        //     0x30 => Six502::bmi, //(), // relative
+        //     0x50 => Six502::bvc, //(), // relative
+        //     0x70 => Six502::bvs, //(), // relative
+        //     0x90 => Six502::bcc, //(), // relative
+        //     0xb0 => Six502::bcs, //(), // relative
+        //     0xd0 => Six502::bne, //(), // relative
+        //     0xf0 => Six502::beq, //(), // relative
 
-            // status flag changes
-            0x18 => Six502::clc, // (), // implied. In an implied instruction, the data and/or destination is mandatory for the instruction
-            0x38 => Six502::sec, // (), // implied
-            0x58 => Six502::cli, // (), // implied
-            0x78 => Six502::sei, // (), // implied
-            0xb8 => Six502::clv, // (), // implied
-            0xd8 => Six502::cld, // (), // implied
-            0xf8 => Six502::sed, // (), // implied
+        //     // status flag changes
+        //     0x18 => Six502::clc, // (), // implied. In an implied instruction, the data and/or destination is mandatory for the instruction
+        //     0x38 => Six502::sec, // (), // implied
+        //     0x58 => Six502::cli, // (), // implied
+        //     0x78 => Six502::sei, // (), // implied
+        //     0xb8 => Six502::clv, // (), // implied
+        //     0xd8 => Six502::cld, // (), // implied
+        //     0xf8 => Six502::sed, // (), // implied
 
-            // no-op
-            0xea => Six502::nop, //(Implied),
+        //     // no-op
+        //     0xea => Six502::nop, //(Implied),
 
-            _ => unimplemented!("op not unimplemented: {}", self.curr_op_num),
-        };
+        //     _ => unimplemented!("op not unimplemented: {}", self.curr_op_num),
+        // };
     }
 
     // fetch uses the address bus to fetch an opcode. It gets the u8 and bumps the pc
     pub(super) fn fetch_op(&mut self) {
-        let op_num = self.load_u8_bump_pc();
-        self.curr_op_num = op_num;
-        let op_str = INSTRUCTIONS[op_num as usize];
-        self.curr_op_str = op_str;
+        // let op_num = self.load_u8_bump_pc();
+        // self.curr_op_num = op_num;
+        // let op_str = INSTRUCTIONS[op_num as usize];
+        // self.curr_op_str = op_str;
     }
     /// The first byte of an instruction is called the OP CODE and is coded to contain the basic operation such as LDA
     /// then it has the data necessary to allow the microprocessor to interpret the address of the data on which the operation will occur
@@ -608,7 +625,7 @@ impl<T: FnMut(&mut Self, AddressingMode) -> u8> Six502<T> {
     }
 }
 
-impl<T: FnMut(&mut Self, AddressingMode) -> u8> ByteAccess for Six502<T> {
+impl ByteAccess for Six502 {
     fn load_u8(&mut self, addr: u16) -> u8 {
         self.bus.load_u8(addr)
     }

@@ -7,7 +7,7 @@ use std::ops::{Add, AddAssign};
 
 const STACK_OFFSET: u16 = 0x0100;
 
-impl<T: FnMut(&mut Self, AddressingMode) -> u8> Six502<T> {
+impl Six502 {
     /// Tthe concept of interrupt is used to signal the microprocessor that an external event has occurred and the
     /// microprocessor should devote attention to it immediately.  
     /// This technique accomplishes processing in which the microprocessor's program is interrupted and the event that caused the interrupt is serviced.
@@ -135,7 +135,7 @@ impl<T: FnMut(&mut Self, AddressingMode) -> u8> Six502<T> {
     }
 
     // atom does any number of ops and ticks once
-    pub(super) fn atom<F: FnMut(&mut Six502<T>)>(&mut self, mut f: F) {
+    pub(super) fn atom<F: FnMut(&mut Six502)>(&mut self, mut f: F) {
         f(self);
         self.cy += 1;
     }
