@@ -40,6 +40,8 @@ pub enum AddressingMode {
     // OPC #$BB: operand is the byte BB, as is.
     Immediate,
 
+    Indirect,
+
     // OPC ($LLHH): operand is address; effective address is contents of word at address: C.w($HHLL)
     // Indirect, // Indirect was excluded because it yields a u16 value and is only useful in the `jmpi` instruction
 
@@ -201,6 +203,7 @@ impl AddressingMode {
                 }
                 (0, false)
             }
+            AddressingMode::Indirect => todo!(),
         }
     }
 
@@ -283,6 +286,7 @@ impl AddressingMode {
             }
             AddressingMode::Implied => todo!(),
             AddressingMode::Relative => todo!(),
+            AddressingMode::Indirect => todo!(),
         }
     }
 }

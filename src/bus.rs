@@ -124,21 +124,7 @@ pub(crate) struct DataBus {
     pub(crate) cycles: u64,
 }
 
-impl Deref for DataBus {
-
-    type Target = Mem;
-
-    fn deref(&self) -> &Self::Target {
-        &self.mem
-    }
-}
-
-impl DerefMut for DataBus {
-
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut  self.mem
-    }
-}
+impl_deref_mut!(DataBus {mem, Mem});
 
 impl DataBus {
     pub fn new() -> Self {

@@ -8,7 +8,7 @@ pub struct Ram {
     array: [u8; 0x800],
 }
 
-impl_deref_mut!(Ram {array});
+impl_deref_mut!(Ram {array, [u8]});
 
 
 impl Default for Ram {
