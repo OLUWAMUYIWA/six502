@@ -111,7 +111,7 @@ impl Six502 {
 // these ops make use of implied addressing, and are one byte instructions
 impl Six502 {
     /// tax transfers accumulator into x register, updating the z and n flags based on the value of a
-    pub(super) fn tax(&mut self) -> u8 {
+    pub(super) fn tax(&mut self, _mode: AddressingMode) -> u8 {
         self.x = self.a;
         self.update_z(self.a);
         self.update_n(self.a);
@@ -120,7 +120,7 @@ impl Six502 {
 
     /// moves the value that is in the index register X to the accumulator A without disturbing the content of the index register X.
     /// affects Z, N
-    pub(super) fn txa(&mut self) -> u8 {
+    pub(super) fn txa(&mut self, _mode: AddressingMode) -> u8 {
         self.a = self.x;
         self.update_z(self.x);
         self.update_n(self.x);
@@ -128,7 +128,7 @@ impl Six502 {
     }
 
     ///  moves the value of the accumulator into index register Y without affecting the accumulator. affects Z, N
-    pub(super) fn tay(&mut self) -> u8 {
+    pub(super) fn tay(&mut self, _mode: AddressingMode) -> u8 {
         self.y = self.a;
         self.update_z(self.a);
         self.update_n(self.a);
@@ -136,7 +136,7 @@ impl Six502 {
     }
 
     // moves the value that is in the index register Y to accumulator A without disturbing the content of the register Y. affects Z, N
-    pub(super) fn tya(&mut self) -> u8 {
+    pub(super) fn tya(&mut self, _mode: AddressingMode) -> u8 {
         self.a = self.y;
         self.update_z(self.y);
         self.update_n(self.y);
@@ -144,7 +144,7 @@ impl Six502 {
     }
 
     /// tsx: Transfer Stack ptr to X, affects Z, N
-    pub(super) fn tsx(&mut self) -> u8 {
+    pub(super) fn tsx(&mut self, _mode: AddressingMode) -> u8 {
         self.x = self.s;
         self.update_z(self.s);
         self.update_n(self.s);
@@ -152,7 +152,7 @@ impl Six502 {
     }
 
     /// txs: transfer x register to stack pointer
-    pub(super) fn txs(&mut self) -> u8 {
+    pub(super) fn txs(&mut self, _mode: AddressingMode) -> u8 {
         self.s = self.x;
         self.update_z(self.x);
         self.update_n(self.x);
@@ -165,14 +165,14 @@ impl Six502 {
 impl Six502 {
     /// transfers the current value of the accumulator the next location on the stack, automatically decrementing the stack to
     /// point to the next empty location.
-    pub(super) fn pha(&mut self) -> u8 {
+    pub(super) fn pha(&mut self, _mode: AddressingMode) -> u8 {
         self.push_u8(self.a);
         0
     }
 
     /// adds 1 to the current value of the stack pointer and uses it to address the stack and loads the contents of the stack
     /// into the A register.
-    pub(super) fn pla(&mut self) -> u8 {
+    pub(super) fn pla(&mut self, _mode: AddressingMode) -> u8 {
         let v = self.pull_u8();
         self.update_z(v);
         self.update_n(v);
@@ -181,7 +181,7 @@ impl Six502 {
     }
 
     /// push processor status on stack
-    pub(super) fn php(&mut self) -> u8 {
+    pub(super) fn php(&mut self, _mode: AddressingMode) -> u8 {
         let flags = self.p;
         // php sets both Break for th flag pushed onto the stack
         self.push_u8(flags | flags::BREAK);
@@ -191,7 +191,7 @@ impl Six502 {
     /// plp pulls processor status
     /// transfers the next value on the stack to the Processor Status register, thereby changing all of the flags and
     /// setting the mode switches to the values from the stack.
-    pub(super) fn plp(&mut self) -> u8 {
+    pub(super) fn plp(&mut self, _mode: AddressingMode) -> u8 {
         let val = self.pull_u8();
         // set all the flags except the break flag, which remains as it was
         self.p = val & (self.p & flags::BREAK);
@@ -343,7 +343,7 @@ impl Six502 {
     }
 
     ///   Increment X adds 1 to the current value of the X register.
-    pub(super) fn inx(&mut self) -> u8 {
+    pub(super) fn inx(&mut self, _mode: AddressingMode) -> u8 {
         let x = self.x.wrapping_add(1);
         self.update_z(x);
         self.update_n(x);
@@ -352,7 +352,7 @@ impl Six502 {
     }
 
     /// subtracts one from the current value of the index register X and stores the result in the index register X
-    pub(super) fn dex(&mut self) -> u8 {
+    pub(super) fn dex(&mut self, _mode: AddressingMode) -> u8 {
         let x = self.x.wrapping_sub(1);
         self.update_z(x);
         self.update_n(x);
@@ -361,7 +361,7 @@ impl Six502 {
     }
 
     ///   Increment Y adds 1 to the current value of the Y register.
-    pub(super) fn iny(&mut self) -> u8 {
+    pub(super) fn iny(&mut self, _mode: AddressingMode) -> u8 {
         let y = self.y.wrapping_add(1);
         self.update_z(y);
         self.update_n(y);
@@ -370,7 +370,7 @@ impl Six502 {
     }
 
     ///  subtracts one from the current value in the index register Y and stores the result into the index register y
-    pub(super) fn dey(&mut self) -> u8 {
+    pub(super) fn dey(&mut self, _mode: AddressingMode) -> u8 {
         let y = self.y.wrapping_sub(1);
         self.update_z(y);
         self.update_n(y);
@@ -439,13 +439,13 @@ impl Six502 {
     /// basically loads a new address into the pc unconditionally
     /// the cpu knows to always load the next instruction address from the pc
     ///  comeback: 3 or 4 clock cycles: seacrh kim1-6502 for 'The jump absolute therefore only requires 3 cycles.'
-    pub(super) fn jmp(&mut self) -> u8 {
+    pub(super) fn jmp(&mut self, _mode: AddressingMode) -> u8 {
         self.pc = self.load_u16_bump_pc();
         0
     }
 
     // the other version of jump, but with indirect addressing
-    pub(super) fn jmp_indirect(&mut self) -> u8 {
+    pub(super) fn jmp_indirect(&mut self, _mode: AddressingMode) -> u8 {
         let pc = self.load_u16_bump_pc();
         let lo = self.load_u8(pc);
         let hi = self.load_u8((pc & 0xff00) | ((pc + 1) & 0x00ff));
@@ -456,7 +456,7 @@ impl Six502 {
     /// jump to subroutine
     /// transfers control of the program counter to a sub- routine location but leaves a return pointer on the stack to allow the
     /// user to return to perform the next instruction in the main program after the subroutine is complete
-    pub(super) fn jsr(&mut self) -> u8 {
+    pub(super) fn jsr(&mut self, _mode: AddressingMode) -> u8 {
         let pc = self.pc;
         let addr = self.load_u16_bump_pc();
         self.push_u16(pc - 1); // push curr pc-1 to the stack
@@ -467,14 +467,14 @@ impl Six502 {
     /// loads the program Count low and program count high
     /// from the stack into the program counter and increments the program Counter
     ///  so that it points to the instruction following the JSR
-    pub(super) fn rts(&mut self) -> u8 {
+    pub(super) fn rts(&mut self, _mode: AddressingMode) -> u8 {
         let pos = self.pull_u16() + 1;
         self.pc = pos;
         0
     }
 
     // BRK initiates a software interrupt similar to a hardware interrupt (IRQ)
-    pub(super) fn brk(&mut self) -> u8 {
+    pub(super) fn brk(&mut self, _mode: AddressingMode) -> u8 {
         self.push_u16(self.pc + 1); //Increase program counter by 1 before pusing on stack so computation returns to the correct place on RTI
                                     // push status register with break bits set
         self.push_u8(self.p | 0b00110000);
@@ -494,7 +494,7 @@ impl Six502 {
     /// There is no automatic save of any of the other registers in the microprocessor.  Because the interrupt occurred to allow data to be trans-
     /// ferred using the microprocessor, the programmer must save the various internal registers at the time the interrupt is taken
     /// and restore them prior to returning from the interrupt. This is done on the stack
-    pub(super) fn rti(&mut self) -> u8 {
+    pub(super) fn rti(&mut self, _mode: AddressingMode) -> u8 {
         let flags = self.pull_u8(); // pop the cpu flags from the stack
                                     // set flag
         self.set_flag(flags);
@@ -547,42 +547,42 @@ impl Six502 {
     }
 
     /// BPL - Branch on Result Plus
-    pub(super) fn bpl(&mut self) -> u8 {
+    pub(super) fn bpl(&mut self, _mode: AddressingMode) -> u8 {
         self.branch(flags::NEGATIVE, false)
     }
 
     ///  BMI - Branch on Result Minus
-    pub(super) fn bmi(&mut self) -> u8 {
+    pub(super) fn bmi(&mut self, _mode: AddressingMode) -> u8 {
         self.branch(flags::NEGATIVE, true)
     }
 
     /// BVC - Branch on Overflow Clear
-    pub(super) fn bvc(&mut self) -> u8 {
+    pub(super) fn bvc(&mut self, _mode: AddressingMode) -> u8 {
         self.branch(flags::OVERFLOW, false)
     }
 
     /// BVS - Branch on Overflow Set
-    pub(super) fn bvs(&mut self) -> u8 {
+    pub(super) fn bvs(&mut self, _mode: AddressingMode) -> u8 {
         self.branch(flags::OVERFLOW, true)
     }
 
     ///  BCC - Branch on Carry Clear
-    pub(super) fn bcc(&mut self) -> u8 {
+    pub(super) fn bcc(&mut self, _mode: AddressingMode) -> u8 {
         self.branch(flags::CARRY, false)
     }
 
     /// BCS - Branch on Carry Set
-    pub(super) fn bcs(&mut self) -> u8 {
+    pub(super) fn bcs(&mut self, _mode: AddressingMode) -> u8 {
         self.branch(flags::CARRY, true)
     }
 
     //  BNE - Branch on Result Not Zero
-    pub(super) fn bne(&mut self) -> u8 {
+    pub(super) fn bne(&mut self, _mode: AddressingMode) -> u8 {
         self.branch(flags::ZERO, false)
     }
 
     /// BEQ - Branch on Result Zero
-    pub(super) fn beq(&mut self) -> u8 {
+    pub(super) fn beq(&mut self, _mode: AddressingMode) -> u8 {
         self.branch(flags::ZERO, true)
     }
 }
@@ -591,40 +591,40 @@ impl Six502 {
 // none of these ops have side effect of affecting other flags
 impl Six502 {
     /// resets the carry flag to a 0
-    pub(super) fn clc(&mut self) -> u8 {
+    pub(super) fn clc(&mut self, _mode: AddressingMode) -> u8 {
         self.clear_flag(flags::CARRY);
         0
     }
 
     /// This instruction initializes the carry flag to a 1
-    pub(super) fn sec(&mut self) -> u8 {
+    pub(super) fn sec(&mut self, _mode: AddressingMode) -> u8 {
         self.set_flag(flags::CARRY);
         0
     }
     /// cli resets interrupt disable to a 0
-    pub(super) fn cli(&mut self) -> u8 {
+    pub(super) fn cli(&mut self, _mode: AddressingMode) -> u8 {
         self.clear_flag(flags::IRQ);
         0
     }
     /// sei sets the interrupt disable flag (IRQ) to a 1
-    pub(super) fn sei(&mut self) -> u8 {
+    pub(super) fn sei(&mut self, _mode: AddressingMode) -> u8 {
         self.set_flag(flags::IRQ);
         0
     }
     /// clears the overflow flag to a 0
     /// used in conjunction with the set overflow pin which can change the state of the overflow flag with an external signal
     // comeback to implement pins, incl this set overflow pin
-    pub(super) fn clv(&mut self) -> u8 {
+    pub(super) fn clv(&mut self, _mode: AddressingMode) -> u8 {
         self.clear_flag(flags::OVERFLOW);
         0
     }
     // cld resets the decimal mode flag D to a 1
-    pub(super) fn cld(&mut self) -> u8 {
+    pub(super) fn cld(&mut self, _mode: AddressingMode) -> u8 {
         self.clear_flag(flags::DECIMAL);
         0
     }
     // sed sets the decimal mode flag D to a 1
-    pub(super) fn sed(&mut self) -> u8 {
+    pub(super) fn sed(&mut self, _mode: AddressingMode) -> u8 {
         self.set_flag(flags::DECIMAL);
         0
     }
