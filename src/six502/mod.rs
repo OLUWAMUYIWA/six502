@@ -7,7 +7,7 @@ use crate::bus::{ByteAccess, DataBus, WordAccess};
 
 use self::{addr_mode::AddressingMode, disasm::INSTRUCTIONS, ram::Ram};
 use addr_mode::AddressingMode::*;
-use bitflags::*;
+use bitflags::bitflags;
 use std::collections::HashMap;
 
 pub(crate) mod addr_mode;

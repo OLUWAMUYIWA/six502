@@ -1,7 +1,9 @@
+use super::addr_mode::AcceptableAddrModes;
 use super::util::{check_overflow, num_cy};
 use super::vectors::{self, IRQ, NMI};
 use super::{addr_mode::AddressingMode, flags, Six502};
 use crate::bus::{ByteAccess, WordAccess};
+use std::marker::PhantomData;
 use std::ops::{BitAnd, BitOr, BitOrAssign, Shl, Shr};
 
 const BRK: u16 = 0xfffe;
@@ -648,3 +650,34 @@ impl Six502 {
 //         };
 //     }
 // }
+
+
+pub(crate) struct Acd<A: AcceptableAddrModes>{a: PhantomData<A>}
+
+impl<A: AcceptableAddrModes> AcceptableAddrModes for Acd<A> {
+    const Accumulator: bool = false;
+
+    const Absolute: bool = false ;
+
+    const Abs_X_Idxd: bool = false;
+
+    const Abs_Y_Idxd: bool = false;
+
+    const Immediate: bool = false;
+
+    const Indirect: bool = false;
+
+    const XIdxd_Indirect: bool = false;
+
+    const Indirect_Y_Idxd: bool = false;
+
+    const ZP: bool = false;
+
+    const ZP_X_Idxd: bool = false;
+
+    const ZP_Y_Idxd: bool = false;
+
+    const Implied: bool = false;
+
+    const Relative: bool = false;
+}
