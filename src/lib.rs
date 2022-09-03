@@ -5,12 +5,19 @@ mod six502;
 
 use bus::ByteAccess;
 pub use six502::addr_mode::AddressingMode;
-pub use six502::Six502;
 
+use six502::Op;
+pub trait Cpu: ByteAccess  {
+    fn new() -> Self;
 
-pub trait Cpu : ByteAccess{
+    fn start(&mut self) -> Result<(), Box<dyn std::error::Error>>;
+
+    fn fetch_op(&mut self, op: &mut Op) ;
+
+    fn exec(&mut self) -> Result<(), Box<dyn std::error::Error>>;
+
+    fn reset(&mut self);
 
 }
 
 
-impl Cpu for Six502{}

@@ -1,5 +1,8 @@
 use super::Six502;
-use crate::{bus::{ByteAccess, WordAccess}, macros::impl_deref_mut};
+use crate::{
+    bus::{ByteAccess, WordAccess},
+    macros::impl_deref_mut,
+};
 use core::panic;
 use std::ops::{Deref, DerefMut, Index};
 
@@ -10,9 +13,7 @@ pub struct Ram {
 
 impl_deref_mut!(Ram {array, [u8]});
 
-
 impl Default for Ram {
-
     fn default() -> Self {
         todo!()
     }

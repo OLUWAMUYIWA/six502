@@ -5,7 +5,8 @@ use std::{
     error::Error,
     fs::{self, File, OpenOptions},
     io::{self, Write},
-    path::Path, ops::{Deref, DerefMut},
+    ops::{Deref, DerefMut},
+    path::Path,
 };
 
 #[derive(Debug)]
@@ -22,16 +23,13 @@ pub(crate) struct Mem {
 const MEM_SIZE: usize = 1024 * 64;
 const MAX_PROG: usize = 65018;
 
-
 impl Default for Mem {
-
     fn default() -> Self {
-        Self { 
-            zp: [0u8;256], 
+        Self {
+            zp: [0u8; 256],
             stack: [0u8; 256],
             x: Default::default(),
-            special: Default::default(), 
-            
+            special: Default::default(),
         }
     }
 }
@@ -40,7 +38,10 @@ impl Mem {
     pub fn open<T: AsRef<Path>>(path: T) -> Result<Self, Box<dyn Error>> {
         let b = fs::read(path)?;
         if b.len() > MAX_PROG {
-            return Err(Box::new(io::Error::new(io::ErrorKind::InvalidData, "Program larger than 652 allows")));
+            return Err(Box::new(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Program larger than 652 allows",
+            )));
         };
 
         Ok(Self {
@@ -68,11 +69,11 @@ impl Mem {
     }
 
     pub(crate) fn store_x(&mut self, addr: u16, v: u8) {
-        self.x[((addr-0xFFFA) as usize)] = v; // offset into the 6-bye array
+        self.x[((addr - 0xFFFA) as usize)] = v; // offset into the 6-bye array
     }
 
     pub(crate) fn load_x(&mut self, addr: u16) -> u8 {
-        self.x[((addr-0xFFFA) as usize)]
+        self.x[((addr - 0xFFFA) as usize)]
     }
 
     pub fn dump<T: AsRef<Path>>(&self, path: T) -> Result<(), Box<dyn Error>> {
@@ -84,7 +85,6 @@ impl Mem {
         Ok(())
     }
 }
-
 
 /// ByteAccess handles the loading and storage of u8 values. An implementor is an addressable member of the NES
 /// The memory address can be regarded as 256 pages (each page defined by the high order byte) of 256 memory locations (bytes) per page.
@@ -124,7 +124,7 @@ pub(crate) struct DataBus {
     pub(crate) cycles: u64,
 }
 
-impl_deref_mut!(DataBus {mem, Mem});
+impl_deref_mut!(DataBus { mem, Mem });
 
 impl DataBus {
     pub fn new() -> Self {
@@ -134,14 +134,12 @@ impl DataBus {
     }
 }
 
-
 impl ByteAccess for DataBus {
     fn load_u8(&mut self, addr: u16) -> u8 {
         match addr {
-            a @ 0x0000..=0x00FF=> self.load_zp(a),
-            0x0100..=0x01ff=> self.load_stack(addr),
+            a @ 0x0000..=0x00FF => self.load_zp(a),
+            0x0100..=0x01ff => self.load_stack(addr),
             // 0x0000..=0x1FFF => self.ram.load_u8(addr),
-
             addr => panic!("Address {} not addressable", addr),
         }
     }
@@ -155,4 +153,3 @@ impl ByteAccess for DataBus {
         }
     }
 }
-

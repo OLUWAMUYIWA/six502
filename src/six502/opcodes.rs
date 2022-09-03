@@ -1,8 +1,10 @@
 use super::addr_mode::AcceptableAddrModes;
+use super::six502::Six502;
 use super::util::{check_overflow, num_cy};
 use super::vectors::{self, IRQ, NMI};
-use super::{addr_mode::AddressingMode, flags, Six502};
+use super::{addr_mode::AddressingMode, flags};
 use crate::bus::{ByteAccess, WordAccess};
+use crate::macros::impl_addr_modes;
 use std::marker::PhantomData;
 use std::ops::{BitAnd, BitOr, BitOrAssign, Shl, Shr};
 
@@ -651,33 +653,29 @@ impl Six502 {
 //     }
 // }
 
-
-pub(crate) struct Acd<A: AcceptableAddrModes>{a: PhantomData<A>}
-
-impl<A: AcceptableAddrModes> AcceptableAddrModes for Acd<A> {
-    const Accumulator: bool = false;
-
-    const Absolute: bool = false ;
-
-    const Abs_X_Idxd: bool = false;
-
-    const Abs_Y_Idxd: bool = false;
-
-    const Immediate: bool = false;
-
-    const Indirect: bool = false;
-
-    const XIdxd_Indirect: bool = false;
-
-    const Indirect_Y_Idxd: bool = false;
-
-    const ZP: bool = false;
-
-    const ZP_X_Idxd: bool = false;
-
-    const ZP_Y_Idxd: bool = false;
-
-    const Implied: bool = false;
-
-    const Relative: bool = false;
+pub(crate) struct Acd<A: AcceptableAddrModes> {
+    a: PhantomData<A>,
 }
+pub(crate) struct And<A: AcceptableAddrModes> {
+    a: PhantomData<A>,
+}
+pub(crate) struct Cmp<A: AcceptableAddrModes> {
+    a: PhantomData<A>,
+}
+pub(crate) struct Eor<A: AcceptableAddrModes> {
+    a: PhantomData<A>,
+}
+pub(crate) struct Lda<A: AcceptableAddrModes> {
+    a: PhantomData<A>,
+}
+pub(crate) struct Ora<A: AcceptableAddrModes> {
+    a: PhantomData<A>,
+}
+pub(crate) struct Sbc<A: AcceptableAddrModes> {
+    a: PhantomData<A>,
+}
+pub(crate) struct Sta<A: AcceptableAddrModes> {
+    a: PhantomData<A>,
+}
+
+impl_addr_modes!(Acd<A>, And<A>, Cmp<A>, Eor<A>, Lda<A>, Ora<A>, Sbc<A>, Sta<A>; 1);

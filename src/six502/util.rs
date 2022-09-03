@@ -1,4 +1,4 @@
-use super::{addr_mode, flags, vectors, Six502};
+use super::{addr_mode, flags, six502::Six502, vectors};
 use crate::{
     bus::{ByteAccess, WordAccess},
     AddressingMode,

@@ -2,8 +2,8 @@
 
 use super::flags;
 use super::Six502;
-use crate::Cpu;
 use crate::bus::{ByteAccess, WordAccess};
+use crate::Cpu;
 use std::ops::{AddAssign, BitOrAssign, Index, RangeBounds, Shl, Shr};
 
 /// [reference](https://www.masswerk.at/6502/6502_instruction_set.html)
@@ -72,8 +72,7 @@ pub enum AddressingMode {
 impl AddressingMode {
     /// load loads a byte from memory based on the addressing mode. It returns a tuple; the byte being fetched, and a boolean
     /// indicating if there is a page cross while loading the byte.
-    pub(super) fn load(&self, cpu: &mut Six502) -> (u8, bool)
-    {
+    pub(super) fn load(&self, cpu: &mut Six502) -> (u8, bool) {
         match self {
             AddressingMode::Accumulator => {
                 cpu.atom(|c| {
@@ -208,8 +207,7 @@ impl AddressingMode {
         }
     }
 
-    pub(super) fn store(&self, cpu: &mut Six502, v: u8) -> bool
-    {
+    pub(super) fn store(&self, cpu: &mut Six502, v: u8) -> bool {
         match self {
             AddressingMode::Accumulator => {
                 cpu.a = v;
@@ -292,14 +290,13 @@ impl AddressingMode {
     }
 }
 
-
 pub(crate) trait AcceptableAddrModes {
     // OPC means `opcode`.
     // operand is the accumulator. for single byte instructions
     const Accumulator: bool;
 
     // OPC $LLHH: operand is address $HHLL (i.e. read little-endian)
-    const Absolute: bool ;
+    const Absolute: bool;
 
     // Next two are Absolute Indexed.
     // Absolute indexed address is absolute addressing with an index register added to the absolute address.
@@ -341,8 +338,7 @@ pub(crate) trait AcceptableAddrModes {
     const Relative: bool;
 }
 
-pub(crate) trait  Addressing<C: Cpu> {
+pub(crate) trait Addressing<C: Cpu> {
     fn dispatch_load(&self, c: &mut C) -> u8;
     fn dispatch_store(&self, c: &mut C);
 }
-
