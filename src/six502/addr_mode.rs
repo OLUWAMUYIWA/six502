@@ -2,6 +2,7 @@
 
 use super::flags;
 use super::Six502;
+use crate::Addressing;
 use crate::bus::{ByteAccess, WordAccess};
 use crate::Cpu;
 use std::ops::{AddAssign, BitOrAssign, Index, RangeBounds, Shl, Shr};
@@ -290,7 +291,7 @@ impl AddressingMode {
     }
 }
 
-pub(crate) trait AcceptableAddrModes {
+pub(crate) trait AcceptableAddrModes6502 {
     // OPC means `opcode`.
     // operand is the accumulator. for single byte instructions
     const ACCUMULATOR: bool;
@@ -338,7 +339,13 @@ pub(crate) trait AcceptableAddrModes {
     const RELATIVE: bool;
 }
 
-pub(crate) trait Addressing<C: Cpu> {
-    fn dispatch_load(&self, c: &mut C) -> u8;
-    fn dispatch_store(&self, c: &mut C);
+impl Addressing for Six502 {
+
+    fn dispatch_load(&mut self) -> u8 {
+        todo!()
+    }
+
+    fn dispatch_store(&mut self) {
+        todo!()
+    }
 }

@@ -7,7 +7,7 @@ use bus::ByteAccess;
 pub use six502::addr_mode::AddressingMode;
 
 use six502::Op;
-pub trait Cpu: ByteAccess  {
+pub trait Cpu: ByteAccess  + Addressing  {
     
     fn new() -> Self;
 
@@ -22,8 +22,12 @@ pub trait Cpu: ByteAccess  {
     fn exec(&mut self) -> Result<(), Box<dyn std::error::Error>>;
 
     fn reset(&mut self);
+}
 
-
+pub trait Addressing {
+    
+    fn dispatch_load(&mut self) -> u8;
+    fn dispatch_store(&mut self);
 }
 
 

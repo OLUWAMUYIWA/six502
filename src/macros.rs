@@ -39,7 +39,7 @@ macro_rules! impl_deref_mut {
 macro_rules! impl_addr_modes {
 	($($t:ty),+ ; 1) => {
 		$(
-			impl<A: crate::six502::addr_mode::AcceptableAddrModes> crate::six502::addr_mode::AcceptableAddrModes for $t {
+			impl<A: crate::six502::addr_mode::AcceptableAddrModes6502> crate::six502::addr_mode::AcceptableAddrModes6502 for $t {
 				const ACCUMULATOR: bool = false;
 
 				const ABSOLUTE: bool = true ;

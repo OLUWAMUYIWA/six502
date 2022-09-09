@@ -1,4 +1,4 @@
-use super::addr_mode::AddressingMode::*;
+use super::addr_mode::{AddressingMode::*, AcceptableAddrModes6502};
 use super::{Op, CYCLES};
 use crate::Cpu;
 use crate::bus::{ByteAccess, DataBus, WordAccess};
@@ -336,3 +336,4 @@ impl Cpu for Six502 {
         // comeback. number of cycles should be 8, byt should include
     }
 }
+

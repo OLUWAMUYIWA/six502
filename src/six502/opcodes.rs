@@ -1,4 +1,4 @@
-use super::addr_mode::AcceptableAddrModes;
+use super::addr_mode::AcceptableAddrModes6502;
 use super::six502::Six502;
 use super::util::{check_overflow, num_cy};
 use super::vectors::{self, IRQ, NMI};
@@ -654,28 +654,28 @@ impl Six502 {
 //     }
 // }
 
-pub(crate) struct Acd<A: AcceptableAddrModes> {
+pub(crate) struct Acd<A: AcceptableAddrModes6502> {
     a: PhantomData<A>,
 }
-pub(crate) struct And<A: AcceptableAddrModes> {
+pub(crate) struct And<A: AcceptableAddrModes6502> {
     a: PhantomData<A>,
 }
-pub(crate) struct Cmp<A: AcceptableAddrModes> {
+pub(crate) struct Cmp<A: AcceptableAddrModes6502> {
     a: PhantomData<A>,
 }
-pub(crate) struct Eor<A: AcceptableAddrModes> {
+pub(crate) struct Eor<A: AcceptableAddrModes6502> {
     a: PhantomData<A>,
 }
-pub(crate) struct Lda<A: AcceptableAddrModes> {
+pub(crate) struct Lda<A: AcceptableAddrModes6502> {
     a: PhantomData<A>,
 }
-pub(crate) struct Ora<A: AcceptableAddrModes> {
+pub(crate) struct Ora<A: AcceptableAddrModes6502> {
     a: PhantomData<A>,
 }
-pub(crate) struct Sbc<A: AcceptableAddrModes> {
+pub(crate) struct Sbc<A: AcceptableAddrModes6502> {
     a: PhantomData<A>,
 }
-pub(crate) struct Sta<A: AcceptableAddrModes> {
+pub(crate) struct Sta<A: AcceptableAddrModes6502> {
     a: PhantomData<A>,
 }
 
