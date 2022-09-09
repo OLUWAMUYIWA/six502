@@ -51,7 +51,6 @@ pub struct Op
 {
     curr_op: fn(&mut Six502, AddressingMode) -> u8,
     curr_op_num: u8,
-    curr_op_str: &'static str,
     addr_mode: AddressingMode,
 }
 
@@ -61,7 +60,6 @@ impl Default for Op
         Self {
             curr_op: Six502::nop,
             curr_op_num: 0,
-            curr_op_str: "",
             addr_mode: Implied,
         }
     }
@@ -73,7 +71,6 @@ impl Op
         Self {
             curr_op: Six502::nop,
             curr_op_num: 0,
-            curr_op_str: "",
             addr_mode: Implied,
         }
     }

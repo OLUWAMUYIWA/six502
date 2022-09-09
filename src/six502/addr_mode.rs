@@ -293,49 +293,49 @@ impl AddressingMode {
 pub(crate) trait AcceptableAddrModes {
     // OPC means `opcode`.
     // operand is the accumulator. for single byte instructions
-    const Accumulator: bool;
+    const ACCUMULATOR: bool;
 
     // OPC $LLHH: operand is address $HHLL (i.e. read little-endian)
-    const Absolute: bool;
+    const ABSOLUTE: bool;
 
     // Next two are Absolute Indexed.
     // Absolute indexed address is absolute addressing with an index register added to the absolute address.
 
     // OPC $LLHH,X: operand is address; effective address is address incremented by X with carry
-    const Abs_X_Idxd: bool;
+    const ABS_X_IDXD: bool;
 
     // OPC $LLHH,Y: operand is address; effective address is address incremented by Y with carry
-    const Abs_Y_Idxd: bool;
+    const ABS_Y_IDXD: bool;
 
     // OPC #$BB: operand is the byte BB, as is.
-    const Immediate: bool;
+    const IMMEDIATE: bool;
 
-    const Indirect: bool;
+    const INDIRECT: bool;
 
     // OPC ($LLHH): operand is address; effective address is contents of word at address: C.w($HHLL)
     // Indirect, // Indirect was excluded because it yields a u16 value and is only useful in the `jmpi` instruction
 
     // operand is zeropage address; effective address is word in (LL + X, LL + X + 1), inc. without carry: C.w($00LL + X)
-    const XIdxd_Indirect: bool;
+    const XIDXD_INDIRECT: bool;
 
     // operand is zeropage address; effective address is word in (LL, LL + 1) incremented by Y with carry: C.w($00LL) + Y
-    const Indirect_Y_Idxd: bool;
+    const INDIRECT_Y_IDXD: bool;
     //Relative
 
     //This type of addressing is called “zero page” - only the first page (the first 256 bytes) of memory is accessible
     const ZP: bool;
 
     // OPC $LL,X    operand is zeropage address; effective address is address incremented by X without carry
-    const ZP_X_Idxd: bool;
+    const ZP_X_IDXD: bool;
 
     // OPC $LL,Y    operand is zeropage address; effective address is address incremented by Y without carry
-    const ZP_Y_Idxd: bool;
+    const ZP_Y_IDXD: bool;
 
     // The instruction is just one byte. Addressing is implicit
-    const Implied: bool;
+    const IMPLIED: bool;
 
     // my cause page crossing or not
-    const Relative: bool;
+    const RELATIVE: bool;
 }
 
 pub(crate) trait Addressing<C: Cpu> {

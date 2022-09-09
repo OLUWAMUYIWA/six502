@@ -3,6 +3,7 @@ use super::six502::Six502;
 use super::util::{check_overflow, num_cy};
 use super::vectors::{self, IRQ, NMI};
 use super::{addr_mode::AddressingMode, flags};
+use crate::Cpu;
 use crate::bus::{ByteAccess, WordAccess};
 use crate::macros::impl_addr_modes;
 use std::marker::PhantomData;

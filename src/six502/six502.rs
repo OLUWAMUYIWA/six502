@@ -56,6 +56,19 @@ impl Cpu for Six502 {
         Default::default()
     }
 
+
+    fn load_u8_bump_pc(&mut self) -> u8 {
+        let addr = self.pc;
+        self.pc = self.pc.wrapping_add(1);
+        self.load_u8(addr)
+    }
+
+    fn load_u16_bump_pc(&mut self) -> u16 {
+        let addr = self.pc;
+        self.pc = self.pc.wrapping_add(2);
+        self.load_u16(addr)
+    }
+    
     // the internal state of the pc and io should be deterministic at the beginning.
     // The reset line is controlled during power on initialization and is a common line which is connected to all devices in the microcomputer
     // which have to be initialized to a known state.
@@ -85,8 +98,6 @@ impl Cpu for Six502 {
     fn fetch_op(&mut self, op: &mut Op) {
         let op_num = self.load_u8_bump_pc();
         op.curr_op_num = op_num;
-        let op_str = INSTRUCTIONS[op_num as usize];
-        op.curr_op_str = op_str;
     }
 
     /// The first byte of an instruction is called the OP CODE and is coded to contain the basic operation such as LDA

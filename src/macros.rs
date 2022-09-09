@@ -40,31 +40,31 @@ macro_rules! impl_addr_modes {
 	($($t:ty),+ ; 1) => {
 		$(
 			impl<A: crate::six502::addr_mode::AcceptableAddrModes> crate::six502::addr_mode::AcceptableAddrModes for $t {
-				const Accumulator: bool = false;
+				const ACCUMULATOR: bool = false;
 
-				const Absolute: bool = true ;
+				const ABSOLUTE: bool = true ;
 
-				const Abs_X_Idxd: bool = true;
+				const ABS_X_IDXD: bool = true;
 
-				const Abs_Y_Idxd: bool = true;
+				const ABS_Y_IDXD: bool = true;
 
-				const Immediate: bool = true;
+				const IMMEDIATE: bool = true;
 
-				const Indirect: bool = false;
+				const INDIRECT: bool = false;
 
-				const XIdxd_Indirect: bool = true;
+				const XIDXD_INDIRECT: bool = true;
 
-				const Indirect_Y_Idxd: bool = true;
+				const INDIRECT_Y_IDXD: bool = true;
 
 				const ZP: bool = true;
 
-				const ZP_X_Idxd: bool = true;
+				const ZP_X_IDXD: bool = true;
 
-				const ZP_Y_Idxd: bool = false;
+				const ZP_Y_IDXD: bool = false;
 
-				const Implied: bool = false;
+				const IMPLIED: bool = false;
 
-				const Relative: bool = false;
+				const RELATIVE: bool = false;
 		})+
 	};
 }

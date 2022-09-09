@@ -35,17 +35,7 @@ impl Six502 {
         self.pc = self.load_u16(vectors::IRQ);
         self.cy += 7;
     }
-    pub(super) fn load_u8_bump_pc(&mut self) -> u8 {
-        let addr = self.pc;
-        self.pc = self.pc.wrapping_add(1);
-        self.load_u8(addr)
-    }
-
-    pub(super) fn load_u16_bump_pc(&mut self) -> u16 {
-        let addr = self.pc;
-        self.pc = self.pc.wrapping_add(2);
-        self.load_u16(addr)
-    }
+    
 
     // STACK
     // The stack in the MCS650X family is a push-down stack implemented
