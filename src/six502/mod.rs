@@ -47,15 +47,13 @@ const CYCLES: [u8; 256] = [
     // hi bit
 ];
 
-pub struct Op
-{
+pub struct Op {
     curr_op: fn(&mut Six502, AddressingMode) -> u8,
     curr_op_num: u8,
     addr_mode: AddressingMode,
 }
 
-impl Default for Op 
-{
+impl Default for Op {
     fn default() -> Self {
         Self {
             curr_op: Six502::nop,
@@ -65,8 +63,7 @@ impl Default for Op
     }
 }
 
-impl Op 
-{
+impl Op {
     fn new() -> Self {
         Self {
             curr_op: Six502::nop,

@@ -1,27 +1,28 @@
-use super::addr_mode::{AddressingMode::*, AcceptableAddrModes6502};
+use super::addr_mode::AddressingMode::*;
 use super::{Op, CYCLES};
-use crate::Cpu;
 use crate::bus::{ByteAccess, DataBus, WordAccess};
+use crate::{AddressingMode, Cpu};
 
 use super::{disasm::INSTRUCTIONS, vectors};
 
 pub struct Six502 {
-    // the major use for the accumulator is transferring data from memory to the accumulator or from the accumulator to memory.
-    // mathematical amd logical operations can then be done to data inside the accumulator. It is where intermediate values are normally  stored
+    /// the major use for the accumulator is transferring data from memory to the accumulator or from the accumulator to memory.
+    /// mathematical amd logical operations can then be done to data inside the accumulator. It is where intermediate values are normally  stored
     pub(super) a: u8,
     pub(super) x: u8,
     pub(super) y: u8,
-    // the program counter (program address pointer) is used to choose (address) the next memory location and the value which the memory
-    // sends hack is decoded in order to determine what operation the MCS650X is going to perform next
-    // it must always be addressing the operation the user wants to perform next
-    // The microprocessor puts the value of the program counter Onto the address bus, transferring
-    // the 8 bits of data at that memory address into the instruction decode. It then autoincreases by one
-    // to change the sequence of ops, the programmer can only do it by changing the value of the pc
+    /// the program counter (program address pointer) is used to choose (address) the next memory location and the value which the memory
+    /// sends hack is decoded in order to determine what operation the MCS650X is going to perform next
+    /// it must always be addressing the operation the user wants to perform next
+    /// The microprocessor puts the value of the program counter Onto the address bus, transferring
+    /// the 8 bits of data at that memory address into the instruction decode. It then autoincreases by one
+    /// to change the sequence of ops, the programmer can only do it by changing the value of the pc
     pub(super) pc: u16,
     pub(super) s: u8,
     pub(super) cy: u64,
-    pub(super) p: u8, // flags
-    // Sixteen bits of address allow access to 65,536 memory locations, each of which, in the MCS650X family, consists of 8 bits of data
+    /// flags
+    pub(super) p: u8, 
+    /// Sixteen bits of address allow access to 65,536 memory locations, each of which, in the MCS650X family, consists of 8 bits of data
     pub(crate) bus: DataBus,
 }
 
@@ -51,11 +52,9 @@ impl Default for Six502 {
 }
 
 impl Cpu for Six502 {
-
     fn new() -> Self {
         Default::default()
     }
-
 
     fn load_u8_bump_pc(&mut self) -> u8 {
         let addr = self.pc;
@@ -68,7 +67,7 @@ impl Cpu for Six502 {
         self.pc = self.pc.wrapping_add(2);
         self.load_u16(addr)
     }
-    
+
     // the internal state of the pc and io should be deterministic at the beginning.
     // The reset line is controlled during power on initialization and is a common line which is connected to all devices in the microcomputer
     // which have to be initialized to a known state.
@@ -93,8 +92,8 @@ impl Cpu for Six502 {
         // programmer control and the stack is initialized and under program control.
         Ok(())
     }
+    
     // fetch uses the address bus to fetch an opcode. It gets the u8 and bumps the pc
-
     fn fetch_op(&mut self, op: &mut Op) {
         let op_num = self.load_u8_bump_pc();
         op.curr_op_num = op_num;
@@ -315,7 +314,6 @@ impl Cpu for Six502 {
         Ok(())
     }
 
-
     /// sets the program counter to the value the RESET vector pointer holds
     /// Instructions exist for the initialization and loading of all other registers in the microprocessor except for the initial setting of the
     /// program counter.  It is for this initial setting of the program counter to a fixed location in the restart vector location specified by the micro-
@@ -337,3 +335,7 @@ impl Cpu for Six502 {
     }
 }
 
+pub trait Addressing {
+    fn dispatch_load(&mut self, mode: AddressingMode) -> u8;
+    fn dispatch_store(&mut self, v: u8, mode: AddressingMode);
+}

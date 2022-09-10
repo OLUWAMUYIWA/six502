@@ -1,11 +1,10 @@
-use super::addr_mode::AcceptableAddrModes6502;
 use super::six502::Six502;
 use super::util::{check_overflow, num_cy};
 use super::vectors::{self, IRQ, NMI};
 use super::{addr_mode::AddressingMode, flags};
-use crate::Cpu;
 use crate::bus::{ByteAccess, WordAccess};
 use crate::macros::impl_addr_modes;
+use crate::Cpu;
 use std::marker::PhantomData;
 use std::ops::{BitAnd, BitOr, BitOrAssign, Shl, Shr};
 
@@ -239,7 +238,7 @@ impl Six502 {
     }
 }
 
-// arithmetic ops
+// Arithmetic ops
 // The MCS650X has an 8-bit arithmetic unit
 // arithmetic ops are performed using the accumulator as temporary storage.
 // parts involved are: the acc; the ALU; the processor status register (or flags), p; the memory
@@ -325,6 +324,18 @@ impl Six502 {
         self.update_n(res as u8);
         num_cy(cross)
     }
+
+
+    // comeback
+    pub(super) fn dec_adc(&mut self, mode: AddressingMode) {
+        self.clc(mode); // clear carry flag
+        self.sed(mode); // set decimal mode
+        self.lda(mode);
+        self.adc(mode);
+        self.sta(mode);
+    }
+
+   
 }
 
 //incrs and decrs
@@ -384,8 +395,9 @@ impl Six502 {
     }
 }
 
-// shifts
 
+
+// shifts
 impl Six502 {
     pub(super) fn rol(&mut self, mode: AddressingMode) -> u8 {
         let (b, cross) = mode.load(self);
@@ -634,49 +646,3 @@ impl Six502 {
         0
     }
 }
-
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use crate::six502::Six502;
-
-//     fn test_adc() {
-//         let mut cpu = Six502 {
-//             a: 0x05,
-//             x: 0x01,
-//             y: 0x01,
-//             pc: 0x0000,
-//             s: 0xaa,
-//             cy: 4,
-//             p: 0x00,
-//             bus: Default::default(),
-//         };
-//     }
-// }
-
-pub(crate) struct Acd<A: AcceptableAddrModes6502> {
-    a: PhantomData<A>,
-}
-pub(crate) struct And<A: AcceptableAddrModes6502> {
-    a: PhantomData<A>,
-}
-pub(crate) struct Cmp<A: AcceptableAddrModes6502> {
-    a: PhantomData<A>,
-}
-pub(crate) struct Eor<A: AcceptableAddrModes6502> {
-    a: PhantomData<A>,
-}
-pub(crate) struct Lda<A: AcceptableAddrModes6502> {
-    a: PhantomData<A>,
-}
-pub(crate) struct Ora<A: AcceptableAddrModes6502> {
-    a: PhantomData<A>,
-}
-pub(crate) struct Sbc<A: AcceptableAddrModes6502> {
-    a: PhantomData<A>,
-}
-pub(crate) struct Sta<A: AcceptableAddrModes6502> {
-    a: PhantomData<A>,
-}
-
-impl_addr_modes!(Acd<A>, And<A>, Cmp<A>, Eor<A>, Lda<A>, Ora<A>, Sbc<A>, Sta<A>; 1);

@@ -1,8 +1,8 @@
 #![allow(dead_code, unused_variables, unused_imports, unused_parens)]
 
 use super::flags;
+use super::six502::Addressing;
 use super::Six502;
-use crate::Addressing;
 use crate::bus::{ByteAccess, WordAccess};
 use crate::Cpu;
 use std::ops::{AddAssign, BitOrAssign, Index, RangeBounds, Shl, Shr};
@@ -12,7 +12,7 @@ use std::ops::{AddAssign, BitOrAssign, Index, RangeBounds, Shl, Shr};
 /// The addressing modes of the MCS6500 family can be grouped into two major categories:  Indexed and Non-Indexed Addressing
 /// Implied addressing is not encoded here because the opcode usually contains the source and the dest for the op (e.g. tsx). morally, there is no need for loading any value
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 #[allow(non_camel_case_types)]
 
 // Two major kinds of addressing exist.
@@ -291,61 +291,218 @@ impl AddressingMode {
     }
 }
 
-pub(crate) trait AcceptableAddrModes6502 {
-    // OPC means `opcode`.
-    // operand is the accumulator. for single byte instructions
-    const ACCUMULATOR: bool;
-
-    // OPC $LLHH: operand is address $HHLL (i.e. read little-endian)
-    const ABSOLUTE: bool;
-
-    // Next two are Absolute Indexed.
-    // Absolute indexed address is absolute addressing with an index register added to the absolute address.
-
-    // OPC $LLHH,X: operand is address; effective address is address incremented by X with carry
-    const ABS_X_IDXD: bool;
-
-    // OPC $LLHH,Y: operand is address; effective address is address incremented by Y with carry
-    const ABS_Y_IDXD: bool;
-
-    // OPC #$BB: operand is the byte BB, as is.
-    const IMMEDIATE: bool;
-
-    const INDIRECT: bool;
-
-    // OPC ($LLHH): operand is address; effective address is contents of word at address: C.w($HHLL)
-    // Indirect, // Indirect was excluded because it yields a u16 value and is only useful in the `jmpi` instruction
-
-    // operand is zeropage address; effective address is word in (LL + X, LL + X + 1), inc. without carry: C.w($00LL + X)
-    const XIDXD_INDIRECT: bool;
-
-    // operand is zeropage address; effective address is word in (LL, LL + 1) incremented by Y with carry: C.w($00LL) + Y
-    const INDIRECT_Y_IDXD: bool;
-    //Relative
-
-    //This type of addressing is called “zero page” - only the first page (the first 256 bytes) of memory is accessible
-    const ZP: bool;
-
-    // OPC $LL,X    operand is zeropage address; effective address is address incremented by X without carry
-    const ZP_X_IDXD: bool;
-
-    // OPC $LL,Y    operand is zeropage address; effective address is address incremented by Y without carry
-    const ZP_Y_IDXD: bool;
-
-    // The instruction is just one byte. Addressing is implicit
-    const IMPLIED: bool;
-
-    // my cause page crossing or not
-    const RELATIVE: bool;
-}
-
 impl Addressing for Six502 {
+    fn dispatch_load(&mut self, mode: AddressingMode) -> u8 {
+        use AddressingMode::*;
 
-    fn dispatch_load(&mut self) -> u8 {
-        todo!()
+        match mode {
+            Accumulator => {
+                self.atom(|c| {
+                    // comeback
+                });
+                self.a
+            }
+            Absolute => {
+                let (mut p1, mut p2, mut v) = (0, 0, 0);
+                self.atom(|c| p1 = c.load_u8_bump_pc());
+                self.atom(|c| p2 = c.load_u8_bump_pc());
+                self.atom(|c| {
+                    let addr = u16::from_le_bytes([p1, p2]);
+                    v = c.load_u8(addr);
+                });
+
+                // let addr = self.load_u16_bump_pc();
+                v
+            }
+            Abs_X_Idxd => {
+                let (mut p1, mut p2, mut v) = (0, 0, 0);
+                let mut over = false;
+                self.atom(|c| p1 = c.load_u8_bump_pc());
+                let x = self.x;
+                self.atom(|c| {
+                    p2 = c.load_u8_bump_pc();
+                    (p1, over) = p1.overflowing_add(x);
+                });
+
+                if over {
+                    self.atom(|c| {
+                        p1 += 1;
+                        let addr = u16::from_le_bytes([p1, p2]);
+                        v = c.load_u8(addr);
+                    });
+                } else {
+                    let addr = u16::from_le_bytes([p1, p2]);
+                    v = self.load_u8(addr);
+                };
+
+                // let op = self.load_u16_bump_pc();
+
+                // // check if it'll overflow into the zero page
+                // let lb_op = op as u8;
+                // let (_, carry) = lb_op.overflowing_add(self.x);
+
+                v
+            }
+            Abs_Y_Idxd => {
+                let op = self.load_u16_bump_pc();
+
+                // check if it'll overflow into the zero page
+                let lb_op = op as u8;
+                let (_, carry) = lb_op.overflowing_add(self.y);
+                self.load_u8(op + (self.y as u16))
+            }
+
+            Immediate => {
+                let mut v = 0;
+                self.atom(|c| v = c.load_u8_bump_pc());
+                v
+            }
+            ZP => {
+                let (mut addr, mut v) = (0, 0);
+                self.atom(|c| {
+                    addr = c.load_u8_bump_pc();
+                });
+                self.atom(|c| {
+                    let addr = addr as u16;
+                    v = c.load_u8(addr);
+                });
+                // let addr = self.load_u8_bump_pc();
+                v
+            }
+            //without carry
+            ZP_X_Idxd => {
+                let addr = self.load_u8_bump_pc();
+                self.load_u8((addr.wrapping_add(self.x)) as u16)
+            } //without carry. that's why we add the `u8`s before converting to `u16`, so it won't carry into the high-byte
+
+            //   If the base address plus X or Y exceeds the value that
+            //   can be stored in a single byte, no carry is generated, therefore there is no page crossing phenomena
+            //    A wrap-around will occur within Page Zero
+            ZP_Y_Idxd => {
+                let addr = self.load_u8_bump_pc();
+                self.load_u8((addr.wrapping_add(self.y)) as u16)
+            }
+            // The major use of indexed indirect is in picking up data from a table or list of addresses to perform an operation.
+            XIdxd_Indirect => {
+                let v = self.load_u8_bump_pc();
+                // zero page addition. Never crosses page. wraps around
+                let comp = self.x.wrapping_add(v);
+                let lo_addr = self.load_u8(comp as u16);
+                let hi_addr = self.load_u8((comp + 1) as u16);
+                // say comp is 0x05 effective address becomes 0x0605
+                let eff_addr = u16::from_le_bytes([lo_addr, hi_addr]);
+                self.load_u8(eff_addr) // never crosses pae as the indexing is done in the zero page
+            }
+            Indirect_Y_Idxd => {
+                let y = self.y;
+                let v = self.load_u8_bump_pc();
+                let lo_addr = self.load_u8(v as u16);
+                let hi_addr = self.load_u8((v + 1) as u16);
+                // say v is 0x05 effective address becomes 0x0605
+                let eff_addr = u16::from_le_bytes([lo_addr, hi_addr]);
+                let (_, carry) = lo_addr.overflowing_add(y);
+                self.load_u8(eff_addr.wrapping_add(y as u16)) // might cross page
+            }
+            Implied => {
+                // basically, nothing happens here, except tha the opcode fetched in last cycle is decoded.
+                // so we just tick. the new opcode is decoded, and the pc os not incremented
+                self.tick();
+                // in the next cycle, the old opcode is executed and the opcode ignored in the above is decoded
+                0
+            }
+            Relative => {
+                let (mut off) = (0);
+                self.atom(|c| {
+                    off = c.load_u8_bump_pc() as i8 as u16;
+                });
+                let mut overflowed = false;
+                // comeback to deal with page transiions
+                self.atom(|c| {
+                    (c.pc, overflowed) = c.pc.overflowing_add(off);
+                });
+                if overflowed {
+                    self.tick();
+                }
+                0
+            }
+            Indirect => todo!(),
+        }
     }
 
-    fn dispatch_store(&mut self) {
-        todo!()
+    fn dispatch_store(&mut self, v: u8, mode: AddressingMode) {
+        use AddressingMode::*;
+
+        match mode {
+            Accumulator => {
+                self.a = v;
+            }
+            Absolute => {
+                let addr = self.load_u16_bump_pc();
+                self.store_u8(addr, v);
+            }
+
+            Abs_X_Idxd => {
+                let op = self.load_u16_bump_pc();
+
+                // check if it'll overflow into the zero page
+                let lb_op = op as u8;
+                let (_, carry) = lb_op.overflowing_add(self.x);
+                let addr = self.load_u16_bump_pc();
+
+                self.store_u8(addr + (self.x as u16), v);
+            }
+            Abs_Y_Idxd => {
+                let op = self.load_u16_bump_pc();
+                // check if it'll overflow into the zero page
+                let lb_op = op as u8; // truncates
+                let (_, carry) = lb_op.overflowing_add(self.y);
+                let addr = self.load_u16_bump_pc();
+                self.store_u8(addr + (self.y as u16), v);
+            }
+
+            Immediate => (), // do nothing
+            // Indirect => false,
+            ZP => {
+                let addr = self.load_u8_bump_pc();
+                self.store_u8(addr as u16, v);
+            }
+
+            //   If the base address plus X or Y exceeds the value that
+            //   can be stored in a single byte, no carry is generated, therefore there is no page crossing phenomena
+            //    A wrap-around will occur within Page Zero
+            ZP_X_Idxd => {
+                let addr = self.load_u8_bump_pc();
+                self.store_u8((addr.wrapping_add(self.x)) as u16, v);
+            }
+            ZP_Y_Idxd => {
+                let addr = self.load_u8_bump_pc();
+                self.store_u8((addr.wrapping_add(self.y)) as u16, v);
+            }
+
+            XIdxd_Indirect => {
+                let v = self.load_u8_bump_pc();
+                // zero page addition. Never crosses page. wraps around
+                let comp = self.x.wrapping_add(v);
+                let lo_addr = self.load_u8(comp as u16);
+                let hi_addr = self.load_u8(comp.wrapping_add(1) as u16);
+                let eff_addr = u16::from_le_bytes([lo_addr, hi_addr]);
+                self.store_u8(eff_addr, v);
+                // never crosses page as the indexing is done in the zero page
+            }
+            Indirect_Y_Idxd => {
+                let v = self.load_u8_bump_pc();
+                let y = self.y;
+                let lo_addr = self.load_u8(v as u16);
+                let hi_addr = self.load_u8((v + 1) as u16);
+                // say v is 0x05 effective address becomes 0x0605
+                let eff_addr = u16::from_le_bytes([lo_addr, hi_addr]);
+                let (_, carry) = lo_addr.overflowing_add(y);
+                self.store_u8(eff_addr.wrapping_add(y as u16), v);
+                // might cross page
+            }
+            Implied => todo!(),
+            Relative => todo!(),
+            Indirect => todo!(),
+        }
     }
 }

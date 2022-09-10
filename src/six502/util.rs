@@ -35,7 +35,6 @@ impl Six502 {
         self.pc = self.load_u16(vectors::IRQ);
         self.cy += 7;
     }
-    
 
     // STACK
     // The stack in the MCS650X family is a push-down stack implemented
@@ -99,9 +98,7 @@ impl Six502 {
         if cond {
             self.set_flag(flag);
         } else {
-            {
-                self.clear_flag(flag);
-            }
+            self.clear_flag(flag);
         }
     }
 
@@ -137,10 +134,12 @@ impl Six502 {
 
 /// the overflow flag, used to indicate when a carry from 7 bits has occurred.
 /// NB, here, we use zero indexing in the explanations
-/// The generation of a carry out of the field in signed arithmetic is the same as when adding two 8-bit numbers(unsigned arith), except for the fact that the normal carry flag
+/// The generation of a carry out of the field in signed arithmetic is the same as when adding two 8-bit numbers(unsigned arith), 
+/// except for the fact that the normal carry flag
 /// does not correctly represent the fact that the field has been exceeded.
 /// this is necessary because in the case of signed aritmetic, addition occurs in the 0-6 bits and not the bit 7
-/// essentially, the 7th bit serves as the carry bit (the 8th is supposed to be, but since the operation only morally considers 0-6, as the 7th is the sign bit)
+/// essentially, the 7th bit serves as the carry bit ( since the operation only morally
+///  considers 0-6, as the 7th is the sign bit)
 /// **So,The overflow flag is set whenever the sign bit (bit 7) is changed as a result of the operation.**
 /// two cases:
 /// 1.     0100 + 0100 = 1000 => overflow flag is turned on.
@@ -150,7 +149,7 @@ impl Six502 {
 pub(super) fn check_overflow(a: u8, b: u8, res: u8) -> bool {
     // res refers to the value of the result after add or sub
     // a and b are the operands
-    // two conditions anded together
+    // two conditions anded together:
     // 1: only one of the two operands is **not** negative (bit 7 set). i.e. they're either both pos or neg
     // 2. both the result and either of the operands are inverse of each other
     (a ^ res) & (b ^ res) & 0x80 != 0
