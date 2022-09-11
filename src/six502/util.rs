@@ -107,12 +107,9 @@ impl Six502 {
     }
 
     /// The zero flag is set if the accumulator result is 0, otherwise the zero flag is reset
-    pub(super) fn update_z(&mut self, v: u8) {
-        self.assert_flag(flags::ZERO, v == 0);
-    }
-
     /// The negative flag is set if the accumulator result has bit 7 on, otherwise the negative flag is reset.
-    pub(super) fn update_n(&mut self, v: u8) {
+    pub(super) fn update_zn_flags(&mut self, v: u8) {
+        self.assert_flag(flags::ZERO, v == 0);
         self.assert_flag(flags::NEGATIVE, v & 0x80 != 0);
     }
 
@@ -133,14 +130,14 @@ impl Six502 {
 }
 
 /// the overflow flag, used to indicate when a carry from 7 bits has occurred.
-/// NB, here, we use zero indexing in the explanations
+/// NB, here, we use  bit numbers in the explanations
 /// The generation of a carry out of the field in signed arithmetic is the same as when adding two 8-bit numbers(unsigned arith), 
 /// except for the fact that the normal carry flag
-/// does not correctly represent the fact that the field has been exceeded.
+/// does not correctly represent the fact that the 7 bit field has been exceeded.
 /// this is necessary because in the case of signed aritmetic, addition occurs in the 0-6 bits and not the bit 7
-/// essentially, the 7th bit serves as the carry bit ( since the operation only morally
-///  considers 0-6, as the 7th is the sign bit)
-/// **So,The overflow flag is set whenever the sign bit (bit 7) is changed as a result of the operation.**
+/// essentially, the 8th bit (i.e position 7) serves as the carry bit ( since the operation only morally
+///  considers 0-6, as the 8th is the sign bit)
+/// **So,The overflow flag is set whenever the sign bit (8th bit) is changed as a result of the operation.**
 /// two cases:
 /// 1.     0100 + 0100 = 1000 => overflow flag is turned on.
 /// 2.     1000 + 1000 = 0000 => overflow flag is turned on.

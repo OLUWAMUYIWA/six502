@@ -40,4 +40,49 @@ Again, it is important to know `adc` (and `sbc`) will always set both these flag
 #### Subtraction
 Subtaction is done by deducting the value of the memory-fetched value and the carry from the accumulator. It uses twos compliment arithmetic. Rsult is stored in the accumulator. If a borrow occurs as a result of the subtraction, i.e. the result is >= 0, the `carry` flag is set, else it is reset. The carry flag being set means no borrow occured. 
 `sbc` therefore means `A = A - M - !C`
-Since `C` being unset signifies a borrow. 
+Since `C` being unset signifies a borrow, and a carry is set when the 9th bit is set aftter the computation, it becomes easy to do multi-byte addition. Overflow occurs in twos commpliment subtraction when the result positive. If the result is negative then there will be no overflow into the 9th bit. 
+
+To see how this would work, I wrote two small routines: 
+```rust
+     fn sub(a: u8, b: u8, carry: bool) -> (u8, bool) {
+          let mut b = b;
+          if !carry {
+               b += 1;    
+          }
+          let twos_comp = !u16::from(b) + 1;
+          let mut a = u16::from(a);
+          let overflow;
+          (a, overflow) = a.overflowing_add(twos_comp);
+          (a as u8, overflow)
+     }
+
+     fn u16_sub(a: u16, b: u16) -> (u16, bool) {
+          let (a0, b0) = (a as u8, b as u8);
+          let (a1, b1) = ((a >> 8) as u8, (b >>8) as u8);
+          let (res0, over) = sub(a0, b0, true);
+          let (res1, over) = sub(a1, b1, over);
+          let res: u16 = u16::from_be_bytes([res1, res0]);
+          (res, over)
+     }
+```
+
+To do twos compliment subtraction, you find the twos compliment of the subtrahend (that is flip the bits and add 1), then you add this to the other number. Whether it overflows or not matters. If it overflows, then the result is positive (it also means that the MSB will be 0). If it doesn't overflow, then the result is negative (Thats why we said earlier that the compliment of the carry flag signifies if there is a borrow or not). This as implications for multi-byte subtraction, as seen in the code snippet above. The programmer has to set the carry bit to 1 before the subtraction of the lowest byte(or the only byte in the case of ingle byte subtraction). Setting the carry flag indicates that there is no borrow going on here, or also that this is the first (or only) byte we're subtracting. As is apparent, the carry flag is set as it normally is, i.e. because of a set 9th bit. What matters here, again, is the interpretation (by the programmer and by the operation).
+After doit all these, `sbc` still has to set other flags like the overflow, zero and negative flags. Their values are as expected.`z` if the `accumulator` now contains a zero value, `n` if the 8th bit is set.
+
+
+_The basic rule for `6502` prorammers is to set the carry flag at the beginning of a subtraction, and clear the carry flag at the beginning of an addition_
+
+
+
+
+### The Concept of Oveflow in 6502
+AN oveflow occurs (or is only checked) in signed operations. It signifies that although `bit 7`, ie. 8th bit usually contains the sign in signed operands, this articular operation is different in that the sign bit is no longer representing the sign but an overflow for the operation from the lower 7 bits.
+How does the system know this?
+1. The system knows that all signed numbers are between the range of `-128` and `+127`
+2. It knows that -ve numbers begin with `1` while +ve numbers begin with `0`
+3. In the case of `adc`, it knows that in `adc`, addition of a +ve number to a -ve number can never give a number exceding this range stated above
+4. So for `adc`, it only considers two cases: 
+     - case where both are +ve. It knows that adding two +ve numbers (numbers with bit 7 unset) would never give a result with the bit 7 set (i.e. negative). It sets the overflow flag 
+     - case where both operands arre -ve. It knows that adding two -ve numbers (with bit 7 set) would never give a result with the bit 7 unset (i.e. positive). It sets the oveflow flag
+5. `sbc` is basically the same add operation with the second operand as twos compliment
+Used to indicate that a value greater han 7 bits is the actual result of the computatio what this means is that the sign bit is not actually a sign bit but an overflow from the lower seven bits its major purpose is to monitor this used in signed aritmetic. user who is not using signed arithmetic  can totally ignore this flag

@@ -19,8 +19,7 @@ impl Six502 {
     pub(super) fn lda(&mut self, mode: AddressingMode) -> u8 {
         let (v, cross) = mode.load(self);
         self.a = v;
-        self.update_z(v);
-        self.update_n(v);
+        self.update_zn_flags(v);
         num_cy(cross)
     }
 
@@ -28,8 +27,7 @@ impl Six502 {
     pub(super) fn ldx(&mut self, mode: AddressingMode) -> u8 {
         let (v, cross) = mode.load(self);
         self.x = v;
-        self.update_z(v);
-        self.update_n(v);
+        self.update_zn_flags(v);
         num_cy(cross)
     }
 
@@ -37,8 +35,7 @@ impl Six502 {
     pub(super) fn ldy(&mut self, mode: AddressingMode) -> u8 {
         let (v, cross) = mode.load(self);
         self.y = v;
-        self.update_z(v);
-        self.update_n(v);
+        self.update_zn_flags(v);
         num_cy(cross)
     }
 
@@ -71,8 +68,7 @@ impl Six502 {
         let reg = reg as u16;
         // causes the carry to be set on if the absolute value of the index register X is equal to or greater than the data from memory.
         self.assert_flag(flags::CARRY, reg >= v);
-        self.update_z((reg.wrapping_sub(v)) as u8);
-        self.update_n((reg.wrapping_sub(v)) as u8);
+        self.update_zn_flags(reg.wrapping_sub(v) as u8);
     }
     /// CMP - Compare Memory and Accumulator.
     /// subtracts the contents of memory from the contents of the accumulator.
@@ -117,8 +113,7 @@ impl Six502 {
     /// tax transfers accumulator into x register, updating the z and n flags based on the value of a
     pub(super) fn tax(&mut self, _mode: AddressingMode) -> u8 {
         self.x = self.a;
-        self.update_z(self.a);
-        self.update_n(self.a);
+        self.update_zn_flags(self.a);
         0
     }
 
@@ -126,40 +121,35 @@ impl Six502 {
     /// affects Z, N
     pub(super) fn txa(&mut self, _mode: AddressingMode) -> u8 {
         self.a = self.x;
-        self.update_z(self.x);
-        self.update_n(self.x);
+        self.update_zn_flags(self.x);
         0
     }
 
     ///  moves the value of the accumulator into index register Y without affecting the accumulator. affects Z, N
     pub(super) fn tay(&mut self, _mode: AddressingMode) -> u8 {
         self.y = self.a;
-        self.update_z(self.a);
-        self.update_n(self.a);
+        self.update_zn_flags(self.a);
         0
     }
 
     // moves the value that is in the index register Y to accumulator A without disturbing the content of the register Y. affects Z, N
     pub(super) fn tya(&mut self, _mode: AddressingMode) -> u8 {
         self.a = self.y;
-        self.update_z(self.y);
-        self.update_n(self.y);
+        self.update_zn_flags(self.y);
         0
     }
 
     /// tsx: Transfer Stack ptr to X, affects Z, N
     pub(super) fn tsx(&mut self, _mode: AddressingMode) -> u8 {
         self.x = self.s;
-        self.update_z(self.s);
-        self.update_n(self.s);
+        self.update_zn_flags(self.s);
         0
     }
 
     /// txs: transfer x register to stack pointer
     pub(super) fn txs(&mut self, _mode: AddressingMode) -> u8 {
         self.s = self.x;
-        self.update_z(self.x);
-        self.update_n(self.x);
+        self.update_zn_flags(self.x);
         0
     }
 }
@@ -178,8 +168,7 @@ impl Six502 {
     /// into the A register.
     pub(super) fn pla(&mut self, _mode: AddressingMode) -> u8 {
         let v = self.pull_u8();
-        self.update_z(v);
-        self.update_n(v);
+        self.update_zn_flags(v);
         self.a = v;
         0
     }
@@ -211,8 +200,7 @@ impl Six502 {
     pub(super) fn and(&mut self, mode: AddressingMode) -> u8 {
         let (v, cross) = mode.load(self);
         self.a &= v;
-        self.update_z(self.a);
-        self.update_n(self.a);
+        self.update_zn_flags(self.a);
         num_cy(cross)
     }
 
@@ -222,8 +210,7 @@ impl Six502 {
     pub(super) fn ora(&mut self, mode: AddressingMode) -> u8 {
         let (v, cross) = mode.load(self);
         self.a |= v;
-        self.update_z(self.a);
-        self.update_n(self.a);
+        self.update_zn_flags(self.a);
         num_cy(cross)
     }
     /// The XOR instruction performs a bit-by-bit XOR operation and stores the result back in the accumulator
@@ -232,8 +219,7 @@ impl Six502 {
     pub(super) fn eor(&mut self, mode: AddressingMode) -> u8 {
         let (v, cross) = mode.load(self);
         self.a ^= v;
-        self.update_z(self.a);
-        self.update_n(self.a);
+        self.update_zn_flags(self.a);
         num_cy(cross)
     }
 }
@@ -283,8 +269,7 @@ impl Six502 {
         self.assert_flag(flags::OVERFLOW, check_overflow(a as u8, b as u8, res as u8));
         self.a = res as u8;
         let a = self.a;
-        self.update_z(a);
-        self.update_n(a);
+        self.update_zn_flags(a);
         num_cy(cross)
     }
 
@@ -305,23 +290,29 @@ impl Six502 {
     ///      Carry = /1/   0000   0010 = +2
     ///```
     pub(super) fn sbc(&mut self, mode: AddressingMode) -> u8 {
-        let a = u16::from(self.a);
+        let mut a = u16::from(self.a);
         let (v, cross) = mode.load(self);
-        // for single precision sub, the programmer has to set the carry to 1 before using the sbc op, so it will be a valid
-        let twos_comp = if self.is_flag_set(flags::CARRY) {
-            u16::from(!v) + 1
-        } else {
-            u16::from(!v)
-        };
-        let res = a + twos_comp;
-        self.assert_flag(flags::CARRY, res > u16::from(u8::MAX));
+        let (acc, mem )= (self.a, v);
+        let mut v = v as u16;
+        // for single precision sub (or the first sub in a multi-precision sub), the programmer has to set the carry to 1 before using the sbc op, to indicate that a 
+        // borrow will not occur beacuse the compliment of the CARRY indicates a borrow.
+        if !self.is_flag_set(flags::CARRY) { 
+            v += 1;
+        }
+        // get twos compliment
+        let twos_comp = !v + 1;
 
+        // twos compliment addition
+        let overflow;
+        (a, overflow) = a.overflowing_add(twos_comp);
+
+        self.assert_flag(flags::CARRY, overflow);
+        let a = a as u8;
         // The overflow flag is set when the result exceeds +127 or -127, otherwise it is reset.
-        self.assert_flag(flags::OVERFLOW, check_overflow(a as u8, v, res as u8));
+        self.assert_flag(flags::OVERFLOW, check_overflow(acc, mem, a));
 
-        self.a = res as u8;
-        self.update_z(res as u8);
-        self.update_n(res as u8);
+        self.a = a;
+        self.update_zn_flags(a);
         num_cy(cross)
     }
 
@@ -335,6 +326,15 @@ impl Six502 {
         self.sta(mode);
     }
 
+    // comeback
+    pub(super) fn dec_sbc(&mut self, mode: AddressingMode) {
+        self.clc(mode); // clear carry flag
+        self.sed(mode); // set decimal mode
+        self.lda(mode);
+        self.sbc(mode);
+        self.sta(mode);
+    }
+
    
 }
 
@@ -343,8 +343,7 @@ impl Six502 {
     pub(super) fn inc(&mut self, mode: AddressingMode) -> u8 {
         let (v, cross) = mode.load(self);
         let v = v.wrapping_add(1);
-        self.update_z(v);
-        self.update_n(v);
+        self.update_zn_flags(v);
         let cross_store = mode.store(self, v);
         num_cy(cross) + num_cy(cross_store) // crossed pages both while loading and storing?
     }
@@ -352,8 +351,7 @@ impl Six502 {
     pub(super) fn dec(&mut self, mode: AddressingMode) -> u8 {
         let (v, cross) = mode.load(self);
         let v = v.wrapping_sub(1);
-        self.update_z(v);
-        self.update_n(v);
+        self.update_zn_flags(v);
         let cross_store = mode.store(self, v);
         num_cy(cross) + num_cy(cross_store) // crossed pages both while loading and storing?
     }
@@ -361,8 +359,7 @@ impl Six502 {
     ///   Increment X adds 1 to the current value of the X register.
     pub(super) fn inx(&mut self, _mode: AddressingMode) -> u8 {
         let x = self.x.wrapping_add(1);
-        self.update_z(x);
-        self.update_n(x);
+        self.update_zn_flags(x);
         self.x = x;
         0
     }
@@ -370,8 +367,7 @@ impl Six502 {
     /// subtracts one from the current value of the index register X and stores the result in the index register X
     pub(super) fn dex(&mut self, _mode: AddressingMode) -> u8 {
         let x = self.x.wrapping_sub(1);
-        self.update_z(x);
-        self.update_n(x);
+        self.update_zn_flags(x);
         self.x = x;
         0
     }
@@ -379,8 +375,7 @@ impl Six502 {
     ///   Increment Y adds 1 to the current value of the Y register.
     pub(super) fn iny(&mut self, _mode: AddressingMode) -> u8 {
         let y = self.y.wrapping_add(1);
-        self.update_z(y);
-        self.update_n(y);
+        self.update_zn_flags(y);
         self.y = y;
         0
     }
@@ -388,8 +383,7 @@ impl Six502 {
     ///  subtracts one from the current value in the index register Y and stores the result into the index register y
     pub(super) fn dey(&mut self, _mode: AddressingMode) -> u8 {
         let y = self.y.wrapping_sub(1);
-        self.update_z(y);
-        self.update_n(y);
+        self.update_zn_flags(y);
         self.y = y;
         0
     }
@@ -407,8 +401,7 @@ impl Six502 {
         }
         self.assert_flag(flags::CARRY, b & 0x80 != 0);
 
-        self.update_z(res);
-        self.update_n(res);
+        self.update_zn_flags(res);
         let cross_store = mode.store(self, res);
         num_cy(cross) + num_cy(cross_store)
     }
@@ -418,8 +411,7 @@ impl Six502 {
         let res: u8 = b.shl(1);
         self.assert_flag(flags::CARRY, b & 0x80 != 0);
 
-        self.update_z(res);
-        self.update_n(res);
+        self.update_zn_flags(res);
         let cross_store = mode.store(self, res);
         num_cy(cross) + num_cy(cross_store)
     }
@@ -431,8 +423,7 @@ impl Six502 {
             res.bitor_assign(0x80);
         }
         self.assert_flag(flags::CARRY, (b & 0x1) != 0);
-        self.update_z(res);
-        self.update_n(res);
+        self.update_zn_flags(res);
         let cross_store = mode.store(self, res);
         num_cy(cross) + num_cy(cross_store)
     }
@@ -441,8 +432,7 @@ impl Six502 {
         let (b, cross) = mode.load(self);
         let res = b.shr(1);
         self.assert_flag(flags::CARRY, (b & 0x1) != 0);
-        self.update_z(res);
-        self.update_n(res);
+        self.update_zn_flags(res);
         let cross_store = mode.store(self, res);
         num_cy(cross) + num_cy(cross_store)
     }
@@ -608,22 +598,28 @@ impl Six502 {
 // none of these ops have side effect of affecting other flags
 impl Six502 {
     /// resets the carry flag to a 0
+    /// typically precedes an `adc` loop. 
+    /// IMPLIED addressing
     pub(super) fn clc(&mut self, _mode: AddressingMode) -> u8 {
         self.clear_flag(flags::CARRY);
         0
     }
 
     /// This instruction initializes the carry flag to a 1
+    /// typically precedes an `sbc` loop. 
+    /// IMPLIED addressing
     pub(super) fn sec(&mut self, _mode: AddressingMode) -> u8 {
         self.set_flag(flags::CARRY);
         0
     }
     /// cli resets interrupt disable to a 0
+    /// IMPLIED addressing
     pub(super) fn cli(&mut self, _mode: AddressingMode) -> u8 {
         self.clear_flag(flags::IRQ);
         0
     }
     /// sei sets the interrupt disable flag (IRQ) to a 1
+    /// IMPLIED addressing
     pub(super) fn sei(&mut self, _mode: AddressingMode) -> u8 {
         self.set_flag(flags::IRQ);
         0
@@ -635,12 +631,14 @@ impl Six502 {
         self.clear_flag(flags::OVERFLOW);
         0
     }
-    // cld resets the decimal mode flag D to a 1
+    /// `cld` resets the decimal mode flag D to a 1
+    /// IMPLIED addressing
     pub(super) fn cld(&mut self, _mode: AddressingMode) -> u8 {
         self.clear_flag(flags::DECIMAL);
         0
     }
-    // sed sets the decimal mode flag D to a 1
+    /// `sed` sets the decimal mode flag D to a 1
+    /// IMPLIED addressing
     pub(super) fn sed(&mut self, _mode: AddressingMode) -> u8 {
         self.set_flag(flags::DECIMAL);
         0
