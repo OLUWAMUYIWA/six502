@@ -86,3 +86,31 @@ How does the system know this?
      - case where both operands arre -ve. It knows that adding two -ve numbers (with bit 7 set) would never give a result with the bit 7 unset (i.e. positive). It sets the oveflow flag
 5. `sbc` is basically the same add operation with the second operand as twos compliment
 Used to indicate that a value greater han 7 bits is the actual result of the computatio what this means is that the sign bit is not actually a sign bit but an overflow from the lower seven bits its major purpose is to monitor this used in signed aritmetic. user who is not using signed arithmetic  can totally ignore this flag
+
+
+### Addressing
+Addressing is about selection of memory addresses by the processor. The processor has an address bus attached to it. Selected address is sent to the memory through the 16-bit address bus, which can be divided into two parts of 8 bits each, namely `ADH` and `ADL`. Since the 6502 is an 8-bit processor, it can only address 8 bytes at once. 6502 uses byte-aaddressing, meaning it addresses memory as chunks of 8-bit fields. Also, since its address space is based on 16 bits, the totall number of addressible bytes is 65536 bytes.
+
+
+
+### Control
+The PC (program counter) is the major point of control. It stores the address of the next instruction the processor will execute. AFter every instruction is fetched decoded, and executed, it is incremented by one, meaning that the processor moves on to execute the next instruction, except you tell it to do otherwise through a jump or a branch, or an interrupt.
+In the 6502, this next thing the PC addresses might also be some data neded after an opcode has been fetched and decoded, but expects a value as an operand. That operand, which could be an immediate value or a memory location is the next thing the PC will refer to. Essentially, it hoes from x to x+1; it is needed when the processor wishes to fetch an instruction.
+
+The program counter also has 16 bits, allowig it to potentially contain any value between 0 and 65k. Were it limited to 8 bits, we wouldnt be able to write programs with more than 256 instructions.
+
+The address selected by the PC is put on the address bus, and sent to the main memory. The instruction (or operand) is delivered to the processor for decoding. The PC increments by one. It goes on to fetch the next. And on and on it goes except for two things: 
+1. The presence of interrupts which well talk about later
+2. Tests based on flags that allow us to branch or jump
+
+Flags such as negative, zero, carry, etc are useful when we wish to change the flow of computation based on the state of the computation. Theyre used to implement, among other things, programming language constructs like `if-else`, `switch`, and `loop`s.
+Since the processor relies on the PC to know what to fetch-decode-execute next, he way to influence it to take a detour is to manipulate the value of the PC.
+
+JMP: JMP is unconditional jump. It doesn't care for whatever is in the flags register. It takes two immediate values that follow it in sequence, sends the first one to be stored temporarily, and in the next cycle, takes the other byte. When we say `take the other byte`, it means that the byte is appears on the address bus. 
+
+JMPI: 
+
+
+Other forms of branching require tests bfore the PC value is changed. SO, the processor fetches and decodes the op, checks the value of a particular flag, and decides whether to make the jump based on the test. If the test is not passed, the PC is not set by the instruction, and so the next sequential instruction is fetched and executed.
+
+

@@ -7,6 +7,9 @@ use crate::bus::{ByteAccess, WordAccess};
 use crate::Cpu;
 use std::ops::{AddAssign, BitOrAssign, Index, RangeBounds, Shl, Shr};
 
+#[repr(transparent)]
+pub(crate) struct AddrBus(u16);
+
 /// [reference](https://www.masswerk.at/6502/6502_instruction_set.html)
 /// The 6502 has the ability to do indexed addressing, where the X or Y register is used as an extra offset to the address being accessed
 /// The addressing modes of the MCS6500 family can be grouped into two major categories:  Indexed and Non-Indexed Addressing

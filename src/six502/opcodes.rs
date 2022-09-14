@@ -1,7 +1,7 @@
 use super::six502::Six502;
 use super::util::{check_overflow, num_cy};
 use super::vectors::{self, IRQ, NMI};
-use super::{addr_mode::AddressingMode, flags};
+use super::{addressing::AddressingMode, flags};
 use crate::bus::{ByteAccess, WordAccess};
 use crate::macros::impl_addr_modes;
 use crate::Cpu;
@@ -442,7 +442,7 @@ impl Six502 {
 impl Six502 {
     const BRK_VECTOR: u16 = 0xfffe;
 
-    /// jump with absolute addressing
+    /// **Jump** with absolute addressing
     /// basically loads a new address into the pc unconditionally
     /// the cpu knows to always load the next instruction address from the pc
     ///  comeback: 3 or 4 clock cycles: seacrh kim1-6502 for 'The jump absolute therefore only requires 3 cycles.'
@@ -451,7 +451,7 @@ impl Six502 {
         0
     }
 
-    // the other version of jump, but with indirect addressing
+    /// The other version of jump, but with indirect addressing
     pub(super) fn jmp_indirect(&mut self, _mode: AddressingMode) -> u8 {
         let pc = self.load_u16_bump_pc();
         let lo = self.load_u8(pc);

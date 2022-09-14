@@ -4,7 +4,7 @@ mod macros;
 mod six502;
 
 use bus::ByteAccess;
-pub use six502::addr_mode::AddressingMode;
+pub use six502::addressing::AddressingMode;
 
 use six502::Op;
 pub trait Cpu: ByteAccess {

@@ -5,12 +5,12 @@
 ///! The MCS6502 is an 8-bit microprocessor. This means that 8 bits of data are transferred or operated upon during each instruction cycle or operation cycle.
 use crate::bus::{ByteAccess, DataBus, WordAccess};
 
-use self::{addr_mode::AddressingMode, disasm::INSTRUCTIONS, ram::Ram, six502::Six502};
-use addr_mode::AddressingMode::*;
+use self::{addressing::AddressingMode, disasm::INSTRUCTIONS, ram::Ram, six502::Six502};
+use addressing::AddressingMode::*;
 use bitflags::bitflags;
 use std::collections::HashMap;
 
-pub(crate) mod addr_mode;
+pub(crate) mod addressing;
 pub(crate) mod disasm;
 mod opcodes;
 pub(crate) mod ram;

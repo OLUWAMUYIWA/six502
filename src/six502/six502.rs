@@ -1,4 +1,4 @@
-use super::addr_mode::AddressingMode::*;
+use super::addressing::AddressingMode::*;
 use super::{Op, CYCLES};
 use crate::bus::{ByteAccess, DataBus, WordAccess};
 use crate::{AddressingMode, Cpu};
@@ -24,7 +24,12 @@ pub struct Six502 {
     pub(super) p: u8, 
     /// Sixteen bits of address allow access to 65,536 memory locations, each of which, in the MCS650X family, consists of 8 bits of data
     pub(crate) bus: DataBus,
+
+
+    pub(crate) addr_bus: u16,
+    pub(crate) data: u8,
 }
+
 
 impl ByteAccess for Six502 {
     fn load_u8(&mut self, addr: u16) -> u8 {
@@ -47,6 +52,8 @@ impl Default for Six502 {
             cy: 0,
             p: 0x24,
             bus: DataBus::new(),
+            addr_bus: 0,
+            data: 0,
         }
     }
 }
@@ -59,13 +66,25 @@ impl Cpu for Six502 {
     fn load_u8_bump_pc(&mut self) -> u8 {
         let addr = self.pc;
         self.pc = self.pc.wrapping_add(1);
-        self.load_u8(addr)
+        self.data = self.load_u8(addr);
+        self.tick();
+        self.data
     }
-
+    
     fn load_u16_bump_pc(&mut self) -> u16 {
-        let addr = self.pc;
-        self.pc = self.pc.wrapping_add(2);
-        self.load_u16(addr)
+        let mut addr = self.pc;
+        self.pc = self.pc.wrapping_add(1);
+        self.data = self.load_u8(addr);
+        self.tick();
+        let lo = self.data;
+
+        addr = self.pc;
+        self.data = self.load_u8(addr);
+        self.pc = self.pc.wrapping_add(1);
+        self.tick();
+        let hi = self.data;
+
+        u16::from_le_bytes([lo, hi])
     }
 
     // the internal state of the pc and io should be deterministic at the beginning.
