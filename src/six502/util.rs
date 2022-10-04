@@ -1,8 +1,9 @@
 use super::{addressing, flags, six502::Six502, vectors};
 use crate::{
-    bus::{ByteAccess, WordAccess},
+    ByteAccess,
     AddressingMode,
 };
+use crate::six502::WordAccess;
 use std::ops::{Add, AddAssign};
 
 const STACK_OFFSET: u16 = 0x0100;
@@ -23,7 +24,8 @@ impl Six502 {
         self.push_u8(self.p);
         // set  the interrrupt disable flag
         self.p |= flags::IRQ;
-        self.pc = self.load_u16(vectors::NMI);
+        self.addr_bus = vectors::NMI;
+        self.pc = self.load_u16();
         self.cy += 7;
     }
 
@@ -32,7 +34,8 @@ impl Six502 {
         self.push_u8(self.p);
         // set  the interrrupt disable flag
         self.p |= flags::IRQ;
-        self.pc = self.load_u16(vectors::IRQ);
+        self.addr_bus = vectors::IRQ;
+        self.pc = self.load_u16();
         self.cy += 7;
     }
 
@@ -55,7 +58,7 @@ impl Six502 {
     // operations which put data on the stack cause the pointer to be decremented automatically
     pub(super) fn push_u8(&mut self, b: u8) {
         let addr = STACK_OFFSET + self.s as u16;
-        self.store_u8(addr, b);
+        self.store_u8(b);
         self.s = self.s.wrapping_sub(1);
     }
 
@@ -63,20 +66,22 @@ impl Six502 {
     // adds 1 to the current value of the stack pointer and uses it to address the stack
     pub(super) fn pull_u8(&mut self) -> u8 {
         let addr = STACK_OFFSET + self.s as u16 + 1;
-        let v = self.load_u8(addr);
+        let v = self.load_u8();
         self.s = self.s.wrapping_add(1);
         v
     }
 
     pub(super) fn push_u16(&mut self, w: u16) {
         let addr = STACK_OFFSET + (self.s - 1) as u16;
-        self.store_u16(addr, w);
+        self.addr_bus = addr;
+        self.store_u16(w);
         self.s = self.s.wrapping_sub(2);
     }
 
     pub(super) fn pull_u16(&mut self) -> u16 {
         let addr = STACK_OFFSET + self.s as u16 + 1;
-        let v = self.load_u16(addr);
+        self.addr_bus = addr;
+        let v = self.load_u16();
         self.s = self.s.wrapping_add(2);
         v
     }
@@ -114,8 +119,7 @@ impl Six502 {
     }
 
     // misc opcode impls
-    pub(super) fn nop(&mut self, _mode: AddressingMode) -> u8 {
-        0
+    pub(super) fn nop(&mut self, _mode: AddressingMode) {
     }
 
     // atom does any number of ops and ticks once
@@ -126,6 +130,10 @@ impl Six502 {
 
     pub(super) fn tick(&mut self) {
         self.cy += 1;
+    }
+
+    pub(super) fn load(&mut self) -> u8 {
+        todo!()
     }
 }
 
@@ -211,11 +219,3 @@ pub(super) fn check_overflow(a: u8, b: u8, res: u8) -> bool {
 //     TXS = 0x9a, // transfer x to stack pointer
 //     TYA = 0x98, // transfer y to accumulator
 // }
-
-pub(super) fn num_cy(b: bool) -> u8 {
-    if b {
-        1
-    } else {
-        0
-    }
-}

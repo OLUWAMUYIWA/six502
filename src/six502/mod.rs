@@ -3,7 +3,8 @@
 ///! Other resources include: Masswerks description of the opcodes ar [masswerk](https://www.masswerk.at/6502/6502_instruction_set.html)
 ///! and the [6502 org website](http://www.6502.org/tutorials/6502opcodes.html)
 ///! The MCS6502 is an 8-bit microprocessor. This means that 8 bits of data are transferred or operated upon during each instruction cycle or operation cycle.
-use crate::bus::{ByteAccess, DataBus, WordAccess};
+use crate::ByteAccess;
+use crate::bus::DataBus;
 
 use self::{addressing::AddressingMode, disasm::INSTRUCTIONS, ram::Ram, six502::Six502};
 use addressing::AddressingMode::*;
@@ -48,7 +49,7 @@ const CYCLES: [u8; 256] = [
 ];
 
 pub struct Op {
-    curr_op: fn(&mut Six502, AddressingMode) -> u8,
+    curr_op: fn(&mut Six502, AddressingMode),
     curr_op_num: u8,
     addr_mode: AddressingMode,
 }
@@ -58,7 +59,7 @@ impl Default for Op {
         Self {
             curr_op: Six502::nop,
             curr_op_num: 0,
-            addr_mode: Implied,
+            addr_mode: Impl_Addr,
         }
     }
 }
@@ -68,7 +69,7 @@ impl Op {
         Self {
             curr_op: Six502::nop,
             curr_op_num: 0,
-            addr_mode: Implied,
+            addr_mode: Impl_Addr,
         }
     }
 
@@ -78,11 +79,11 @@ impl Op {
         match self.curr_op_num {
             0xa1 => {
                 self.curr_op = Six502::lda;
-                self.addr_mode = XIdxd_Indirect;
+                self.addr_mode = X_Idx_Ind;
             }
             0xa5 => {
                 self.curr_op = Six502::lda;
-                self.addr_mode = ZP;
+                self.addr_mode = Zero_Page;
             }
             0xa9 => {
                 self.curr_op = Six502::lda;
@@ -90,23 +91,23 @@ impl Op {
             }
             0xad => {
                 self.curr_op = Six502::lda;
-                self.addr_mode = Absolute
+                self.addr_mode = Abs_Addrs
             }
             0xb1 => {
                 self.curr_op = Six502::lda;
-                self.addr_mode = Indirect_Y_Idxd
-            } //(Indirect_Y_Idxd),
+                self.addr_mode = Ind_Y_Idx
+            } //(Ind_Y_Idx),
             0xb5 => {
                 self.curr_op = Six502::lda;
                 self.addr_mode = ZP_X_Idxd
             } //(ZP_X_Idxd),
             0xb9 => {
                 self.curr_op = Six502::lda;
-                self.addr_mode = Abs_Y_Idxd
+                self.addr_mode = AbsY_Idxd
             } //(Abs_Y_Idxd),
             0xbd => {
                 self.curr_op = Six502::lda;
-                self.addr_mode = Abs_X_Idxd
+                self.addr_mode = AbsX_Idxd
             } //(Abs_X_Idxd),
 
             0xa2 => {
@@ -115,11 +116,11 @@ impl Op {
             } //(Immediate),
             0xa6 => {
                 self.curr_op = Six502::ldx;
-                self.addr_mode = ZP
+                self.addr_mode = Zero_Page
             } //(ZP),
             0xae => {
                 self.curr_op = Six502::ldx;
-                self.addr_mode = Absolute
+                self.addr_mode = Abs_Addrs
             } //(Absolute),
             0xb6 => {
                 self.curr_op = Six502::ldx;
@@ -127,7 +128,7 @@ impl Op {
             } //(ZP_Y_Idxd),
             0xbe => {
                 self.curr_op = Six502::ldx;
-                self.addr_mode = Abs_Y_Idxd
+                self.addr_mode = AbsY_Idxd
             } //(Abs_Y_Idxd),
 
             0xa0 => {
@@ -136,11 +137,11 @@ impl Op {
             } //(Immediate),
             0xa4 => {
                 self.curr_op = Six502::ldy;
-                self.addr_mode = ZP
+                self.addr_mode = Zero_Page
             } //(ZP),
             0xac => {
                 self.curr_op = Six502::ldy;
-                self.addr_mode = Absolute
+                self.addr_mode = Abs_Addrs
             } //(Absolute),
             0xb4 => {
                 self.curr_op = Six502::ldy;
@@ -148,45 +149,45 @@ impl Op {
             } //(ZP_X_Idxd),
             0xbc => {
                 self.curr_op = Six502::ldy;
-                self.addr_mode = Abs_X_Idxd
+                self.addr_mode = AbsX_Idxd
             } //(Abs_X_Idxd),
 
             0x81 => {
                 self.curr_op = Six502::sta;
-                self.addr_mode = XIdxd_Indirect
-            } //(XIdxd_Indirect),
+                self.addr_mode = X_Idx_Ind
+            } //(X_Idx_Ind),
             0x85 => {
                 self.curr_op = Six502::sta;
-                self.addr_mode = ZP
+                self.addr_mode = Zero_Page
             } //(ZP),
             0x8d => {
                 self.curr_op = Six502::sta;
-                self.addr_mode = Absolute
+                self.addr_mode = Abs_Addrs
             } //(Absolute),
             0x91 => {
                 self.curr_op = Six502::sta;
-                self.addr_mode = Indirect_Y_Idxd
-            } //(Indirect_Y_Idxd),
+                self.addr_mode = Ind_Y_Idx
+            } //(Ind_Y_Idx),
             0x95 => {
                 self.curr_op = Six502::sta;
                 self.addr_mode = ZP_X_Idxd
             } //(ZP_X_Idxd),
             0x99 => {
                 self.curr_op = Six502::sta;
-                self.addr_mode = Abs_Y_Idxd
+                self.addr_mode = AbsY_Idxd
             } //(Abs_Y_Idxd),
             0x9d => {
                 self.curr_op = Six502::sta;
-                self.addr_mode = Abs_X_Idxd
+                self.addr_mode = AbsX_Idxd
             } //(Abs_X_Idxd),
 
             0x86 => {
                 self.curr_op = Six502::stx;
-                self.addr_mode = ZP
+                self.addr_mode = Zero_Page
             } //(ZP),
             0x8e => {
                 self.curr_op = Six502::stx;
-                self.addr_mode = Absolute
+                self.addr_mode = Abs_Addrs
             } //(Absolute),
             0x96 => {
                 self.curr_op = Six502::stx;
@@ -195,11 +196,11 @@ impl Op {
 
             0x84 => {
                 self.curr_op = Six502::sty;
-                self.addr_mode = ZP
+                self.addr_mode = Zero_Page
             } //(ZP),
             0x8c => {
                 self.curr_op = Six502::sty;
-                self.addr_mode = Absolute
+                self.addr_mode = Abs_Addrs
             } //(Absolute),
             0x94 => {
                 self.curr_op = Six502::sty;
@@ -209,11 +210,11 @@ impl Op {
             // comparisons
             0xc1 => {
                 self.curr_op = Six502::cmp;
-                self.addr_mode = XIdxd_Indirect
-            } //(XIdxd_Indirect),
+                self.addr_mode = X_Idx_Ind
+            } //(X_Idx_Ind),
             0xc5 => {
                 self.curr_op = Six502::cmp;
-                self.addr_mode = ZP
+                self.addr_mode = Zero_Page
             } //(ZP),
             0xc9 => {
                 self.curr_op = Six502::cmp;
@@ -221,23 +222,23 @@ impl Op {
             } //(Immediate),
             0xcd => {
                 self.curr_op = Six502::cmp;
-                self.addr_mode = Absolute
+                self.addr_mode = Abs_Addrs
             } //(Absolute),
             0xd1 => {
                 self.curr_op = Six502::cmp;
-                self.addr_mode = Indirect_Y_Idxd
-            } //(Indirect_Y_Idxd),
+                self.addr_mode = Ind_Y_Idx
+            } //(Ind_Y_Idx),
             0xd5 => {
                 self.curr_op = Six502::cmp;
                 self.addr_mode = ZP_X_Idxd
             } //(ZP_X_Idxd),
             0xd9 => {
                 self.curr_op = Six502::cmp;
-                self.addr_mode = Abs_Y_Idxd
+                self.addr_mode = AbsY_Idxd
             } //(Abs_Y_Idxd),
             0xdd => {
                 self.curr_op = Six502::cmp;
-                self.addr_mode = Abs_X_Idxd
+                self.addr_mode = AbsX_Idxd
             } //(Abs_X_Idxd),
 
             0xe0 => {
@@ -246,11 +247,11 @@ impl Op {
             } //(Immediate),
             0xe4 => {
                 self.curr_op = Six502::cpx;
-                self.addr_mode = ZP
+                self.addr_mode = Zero_Page
             } //(ZP),
             0xec => {
                 self.curr_op = Six502::cpx;
-                self.addr_mode = Absolute
+                self.addr_mode = Abs_Addrs
             } //(Absolute),
 
             0xc0 => {
@@ -259,65 +260,65 @@ impl Op {
             } //(Immediate),
             0xc4 => {
                 self.curr_op = Six502::cpy;
-                self.addr_mode = ZP
+                self.addr_mode = Zero_Page
             } //(ZP),
             0xcc => {
                 self.curr_op = Six502::cpy;
-                self.addr_mode = Absolute
+                self.addr_mode = Abs_Addrs
             } //(Absolute),
 
             // transfers
             0xaa => {
                 self.curr_op = Six502::tax;
-                self.addr_mode = Implied
+                self.addr_mode = Impl_Addr
             } //(),
             0xa8 => {
                 self.curr_op = Six502::tay;
-                self.addr_mode = Implied
+                self.addr_mode = Impl_Addr
             } //(),
             0x8a => {
                 self.curr_op = Six502::txa;
-                self.addr_mode = Implied
+                self.addr_mode = Impl_Addr
             } //(),
             0x98 => {
                 self.curr_op = Six502::tya;
-                self.addr_mode = Implied
+                self.addr_mode = Impl_Addr
             } //(),
             0x9a => {
                 self.curr_op = Six502::txs;
-                self.addr_mode = Implied
+                self.addr_mode = Impl_Addr
             } //(),
             0xba => {
                 self.curr_op = Six502::tsx;
-                self.addr_mode = Implied
+                self.addr_mode = Impl_Addr
             } //(),
 
             // stack ops
             0x08 => {
                 self.curr_op = Six502::php;
-                self.addr_mode = Implied
-            } //(), //implied addressing
+                self.addr_mode = Impl_Addr
+            } //(), //Impl_Addr addressing
             0x28 => {
                 self.curr_op = Six502::plp;
-                self.addr_mode = Implied
-            } //(), //implied addressing
+                self.addr_mode = Impl_Addr
+            } //(), //Impl_Addr addressing
             0x48 => {
                 self.curr_op = Six502::pha;
-                self.addr_mode = Implied
-            } //(), //implied addressing
+                self.addr_mode = Impl_Addr
+            } //(), //Impl_Addr addressing
             0x68 => {
                 self.curr_op = Six502::pla;
-                self.addr_mode = Implied
-            } //(), //implied addressing
+                self.addr_mode = Impl_Addr
+            } //(), //Impl_Addr addressing
 
             // logical ops
             0x21 => {
                 self.curr_op = Six502::and;
-                self.addr_mode = XIdxd_Indirect
-            } //(XIdxd_Indirect),
+                self.addr_mode = X_Idx_Ind
+            } //(X_Idx_Ind),
             0x25 => {
                 self.curr_op = Six502::and;
-                self.addr_mode = ZP
+                self.addr_mode = Zero_Page
             } //(ZP),
             0x29 => {
                 self.curr_op = Six502::and;
@@ -325,7 +326,7 @@ impl Op {
             } //(Immediate),
             0x2d => {
                 self.curr_op = Six502::and;
-                self.addr_mode = Absolute
+                self.addr_mode = Abs_Addrs
             } //(Absolute),
             0x35 => {
                 self.curr_op = Six502::and;
@@ -333,24 +334,24 @@ impl Op {
             } //(ZP_X_Idxd),
             0x31 => {
                 self.curr_op = Six502::and;
-                self.addr_mode = Indirect_Y_Idxd
-            } //(Indirect_Y_Idxd),
+                self.addr_mode = Ind_Y_Idx
+            } //(Ind_Y_Idx),
             0x39 => {
                 self.curr_op = Six502::and;
-                self.addr_mode = Abs_Y_Idxd
+                self.addr_mode = AbsY_Idxd
             } //(Abs_Y_Idxd),
             0x3d => {
                 self.curr_op = Six502::and;
-                self.addr_mode = Abs_X_Idxd
+                self.addr_mode = AbsX_Idxd
             } //(Abs_X_Idxd),
 
             0x01 => {
                 self.curr_op = Six502::ora;
-                self.addr_mode = XIdxd_Indirect
-            } //(XIdxd_Indirect),
+                self.addr_mode = X_Idx_Ind
+            } //(X_Idx_Ind),
             0x05 => {
                 self.curr_op = Six502::ora;
-                self.addr_mode = ZP
+                self.addr_mode = Zero_Page
             } //(ZP),
             0x09 => {
                 self.curr_op = Six502::ora;
@@ -358,32 +359,32 @@ impl Op {
             } //(Immediate),
             0x0d => {
                 self.curr_op = Six502::ora;
-                self.addr_mode = Absolute
+                self.addr_mode = Abs_Addrs
             } //(Absolute),
             0x11 => {
                 self.curr_op = Six502::ora;
-                self.addr_mode = Indirect_Y_Idxd
-            } //(Indirect_Y_Idxd),
+                self.addr_mode = Ind_Y_Idx
+            } //(Ind_Y_Idx),
             0x15 => {
                 self.curr_op = Six502::ora;
                 self.addr_mode = ZP_X_Idxd
             } //(ZP_X_Idxd),
             0x1d => {
                 self.curr_op = Six502::ora;
-                self.addr_mode = Abs_X_Idxd
+                self.addr_mode = AbsX_Idxd
             } //(Abs_X_Idxd),
             0x19 => {
                 self.curr_op = Six502::ora;
-                self.addr_mode = Abs_Y_Idxd
+                self.addr_mode = AbsY_Idxd
             } //(Abs_Y_Idxd),
 
             0x41 => {
                 self.curr_op = Six502::eor;
-                self.addr_mode = XIdxd_Indirect
-            } //(XIdxd_Indirect),
+                self.addr_mode = X_Idx_Ind
+            } //(X_Idx_Ind),
             0x45 => {
                 self.curr_op = Six502::eor;
-                self.addr_mode = ZP
+                self.addr_mode = Zero_Page
             } //(ZP),
             0x49 => {
                 self.curr_op = Six502::eor;
@@ -391,43 +392,43 @@ impl Op {
             } //(Immediate),
             0x4d => {
                 self.curr_op = Six502::eor;
-                self.addr_mode = Absolute
+                self.addr_mode = Abs_Addrs
             } //(Absolute),
             0x51 => {
                 self.curr_op = Six502::eor;
-                self.addr_mode = Indirect_Y_Idxd
-            } //(Indirect_Y_Idxd),
+                self.addr_mode = Ind_Y_Idx
+            } //(Ind_Y_Idx),
             0x55 => {
                 self.curr_op = Six502::eor;
                 self.addr_mode = ZP_X_Idxd
             } //(ZP_X_Idxd),
             0x5d => {
                 self.curr_op = Six502::eor;
-                self.addr_mode = Abs_X_Idxd
+                self.addr_mode = AbsX_Idxd
             } //(Abs_X_Idxd),
             0x59 => {
                 self.curr_op = Six502::eor;
-                self.addr_mode = Abs_Y_Idxd
+                self.addr_mode = AbsY_Idxd
             } //(Abs_Y_Idxd),
 
             // bit test
             0x24 => {
                 self.curr_op = Six502::bit;
-                self.addr_mode = ZP //(ZP) //bit test
+                self.addr_mode = Zero_Page //(ZP) //bit test
             }
             0x2c => {
                 self.curr_op = Six502::bit; //(Absolute) // bit test
-                self.addr_mode = Absolute;
+                self.addr_mode = Abs_Addrs;
             }
 
             // arithmetic ops
             0x61 => {
                 self.curr_op = Six502::adc;
-                self.addr_mode = XIdxd_Indirect
-            } //(XIdxd_Indirect),
+                self.addr_mode = X_Idx_Ind
+            } //(X_Idx_Ind),
             0x65 => {
                 self.curr_op = Six502::adc;
-                self.addr_mode = ZP
+                self.addr_mode = Zero_Page
             } //(ZP),
             0x69 => {
                 self.curr_op = Six502::adc;
@@ -435,32 +436,32 @@ impl Op {
             } //(Immediate),
             0x6d => {
                 self.curr_op = Six502::adc;
-                self.addr_mode = Absolute
+                self.addr_mode = Abs_Addrs
             } //(Absolute),
             0x71 => {
                 self.curr_op = Six502::adc;
-                self.addr_mode = Indirect_Y_Idxd
-            } //(Indirect_Y_Idxd),
+                self.addr_mode = Ind_Y_Idx
+            } //(Ind_Y_Idx),
             0x75 => {
                 self.curr_op = Six502::adc;
                 self.addr_mode = ZP_X_Idxd
             } //(ZP_X_Idxd),
             0x79 => {
                 self.curr_op = Six502::adc;
-                self.addr_mode = Abs_Y_Idxd
+                self.addr_mode = AbsY_Idxd
             } //(Abs_Y_Idxd),
             0x7d => {
                 self.curr_op = Six502::adc;
-                self.addr_mode = Abs_X_Idxd
+                self.addr_mode = AbsX_Idxd
             } //(Abs_X_Idxd),
 
             0xe1 => {
                 self.curr_op = Six502::sbc;
-                self.addr_mode = XIdxd_Indirect
-            } //(XIdxd_Indirect),
+                self.addr_mode = X_Idx_Ind
+            } //(X_Idx_Ind),
             0xe5 => {
                 self.curr_op = Six502::sbc;
-                self.addr_mode = ZP
+                self.addr_mode = Zero_Page
             } //(ZP),
             0xe9 => {
                 self.curr_op = Six502::sbc;
@@ -468,33 +469,33 @@ impl Op {
             } //(Immediate),
             0xed => {
                 self.curr_op = Six502::sbc;
-                self.addr_mode = Absolute
+                self.addr_mode = Abs_Addrs
             } //(Absolute),
             0xf1 => {
                 self.curr_op = Six502::sbc;
-                self.addr_mode = Indirect_Y_Idxd
-            } //(Indirect_Y_Idxd),
+                self.addr_mode = Ind_Y_Idx
+            } //(Ind_Y_Idx),
             0xf5 => {
                 self.curr_op = Six502::sbc;
                 self.addr_mode = ZP_X_Idxd
             } //(ZP_X_Idxd),
             0xf9 => {
                 self.curr_op = Six502::sbc;
-                self.addr_mode = Abs_Y_Idxd
+                self.addr_mode = AbsY_Idxd
             } //(Abs_Y_Idxd),
             0xfd => {
                 self.curr_op = Six502::sbc;
-                self.addr_mode = Abs_X_Idxd
+                self.addr_mode = AbsX_Idxd
             } //(Abs_X_Idxd),
 
             //incrs and decrs
             0xe6 => {
                 self.curr_op = Six502::inc;
-                self.addr_mode = ZP
+                self.addr_mode = Zero_Page
             } //(ZP),
             0xee => {
                 self.curr_op = Six502::inc;
-                self.addr_mode = Absolute
+                self.addr_mode = Abs_Addrs
             } //(Absolute),
             0xf6 => {
                 self.curr_op = Six502::inc;
@@ -502,16 +503,16 @@ impl Op {
             } //(ZP_X_Idxd),
             0xfe => {
                 self.curr_op = Six502::inc;
-                self.addr_mode = Abs_X_Idxd
+                self.addr_mode = AbsX_Idxd
             } //(Abs_X_Idxd),
 
             0xc6 => {
                 self.curr_op = Six502::dec;
-                self.addr_mode = ZP
+                self.addr_mode = Zero_Page
             } //(ZP),
             0xce => {
                 self.curr_op = Six502::dec;
-                self.addr_mode = Absolute
+                self.addr_mode = Abs_Addrs
             } //(Absolute),
             0xd6 => {
                 self.curr_op = Six502::dec;
@@ -519,38 +520,38 @@ impl Op {
             } //(ZP_X_Idxd),
             0xde => {
                 self.curr_op = Six502::dec;
-                self.addr_mode = Abs_X_Idxd
+                self.addr_mode = AbsX_Idxd
             } //(Abs_X_Idxd),
 
             0xe8 => {
                 self.curr_op = Six502::inx;
-                self.addr_mode = Implied
+                self.addr_mode = Impl_Addr
             } //(),
             0xca => {
                 self.curr_op = Six502::dex;
-                self.addr_mode = Implied
+                self.addr_mode = Impl_Addr
             } //(),
             0xc8 => {
                 self.curr_op = Six502::iny;
-                self.addr_mode = Implied
+                self.addr_mode = Impl_Addr
             } //(),
             0x88 => {
                 self.curr_op = Six502::dey;
-                self.addr_mode = Implied
+                self.addr_mode = Impl_Addr
             } //(),
 
             // shifts
             0x26 => {
                 self.curr_op = Six502::rol;
-                self.addr_mode = ZP
+                self.addr_mode = Zero_Page
             } //(ZP),
             0x2a => {
                 self.curr_op = Six502::rol;
-                self.addr_mode = Accumulator
+                self.addr_mode = Acc_Addrs
             } //(Accumulator),
             0x2e => {
                 self.curr_op = Six502::rol;
-                self.addr_mode = Absolute
+                self.addr_mode = Abs_Addrs
             } //(Absolute),
             0x36 => {
                 self.curr_op = Six502::rol;
@@ -558,20 +559,20 @@ impl Op {
             } //(ZP_X_Idxd),
             0x3e => {
                 self.curr_op = Six502::rol;
-                self.addr_mode = Abs_X_Idxd
+                self.addr_mode = AbsX_Idxd
             } //(Abs_X_Idxd),
 
             0x66 => {
                 self.curr_op = Six502::ror;
-                self.addr_mode = ZP
+                self.addr_mode = Zero_Page
             } //(ZP),
             0x6a => {
                 self.curr_op = Six502::ror;
-                self.addr_mode = Accumulator
+                self.addr_mode = Acc_Addrs
             } //(Accumulator),
             0x6e => {
                 self.curr_op = Six502::ror;
-                self.addr_mode = Absolute
+                self.addr_mode = Abs_Addrs
             } //(Absolute),
             0x76 => {
                 self.curr_op = Six502::ror;
@@ -579,20 +580,20 @@ impl Op {
             } //(ZP_X_Idxd),
             0x7e => {
                 self.curr_op = Six502::ror;
-                self.addr_mode = Abs_X_Idxd
+                self.addr_mode = AbsX_Idxd
             } //(Abs_X_Idxd),
 
             0x06 => {
                 self.curr_op = Six502::asl;
-                self.addr_mode = ZP
+                self.addr_mode = Zero_Page
             } //(ZP),
             0x0e => {
                 self.curr_op = Six502::asl;
-                self.addr_mode = Absolute
+                self.addr_mode = Abs_Addrs
             } //(Absolute),
             0x0a => {
                 self.curr_op = Six502::asl;
-                self.addr_mode = Accumulator
+                self.addr_mode = Acc_Addrs
             } //(Accumulator),
             0x16 => {
                 self.curr_op = Six502::asl;
@@ -600,20 +601,20 @@ impl Op {
             } //(ZP_X_Idxd),
             0x1e => {
                 self.curr_op = Six502::asl;
-                self.addr_mode = Abs_X_Idxd
+                self.addr_mode = AbsX_Idxd
             } //(Abs_X_Idxd),
 
             0x4a => {
                 self.curr_op = Six502::lsr;
-                self.addr_mode = Accumulator
+                self.addr_mode = Acc_Addrs
             } //(Accumulator),
             0x46 => {
                 self.curr_op = Six502::lsr;
-                self.addr_mode = ZP
+                self.addr_mode = Zero_Page
             } //(ZP),
             0x4e => {
                 self.curr_op = Six502::lsr;
-                self.addr_mode = Absolute
+                self.addr_mode = Abs_Addrs
             } //(Absolute),
             0x56 => {
                 self.curr_op = Six502::lsr;
@@ -621,107 +622,130 @@ impl Op {
             } //(ZP_X_Idxd),
             0x5e => {
                 self.curr_op = Six502::lsr;
-                self.addr_mode = Abs_X_Idxd
+                self.addr_mode = AbsX_Idxd
             } //(Abs_X_Idxd),
 
             // jumps and calls
             0x4c => {
                 self.curr_op = Six502::jmp;
-                self.addr_mode = Absolute
+                self.addr_mode = Abs_Addrs
             } //(),          // absolute
             0x6c => {
                 self.curr_op = Six502::jmp_indirect;
-                self.addr_mode = Indirect
+                self.addr_mode = Ind_Addrs
             } //(), // indirect
 
             0x20 => {
                 self.curr_op = Six502::jsr;
-                self.addr_mode = Absolute
+                self.addr_mode = Abs_Addrs
             } //(), // absolute
             0x60 => {
                 self.curr_op = Six502::rts;
-                self.addr_mode = Implied
-            } //(), // implied. In an implied instruction, the data and/or destination is mandatory for the instruction
+                self.addr_mode = Impl_Addr
+            } //(), // Impl_Addr. In an Impl_Addr instruction, the data and/or destination is mandatory for the instruction
             0x00 => {
                 self.curr_op = Six502::brk;
-                self.addr_mode = Implied
-            } //(), // implied
+                self.addr_mode = Impl_Addr
+            } //(), // Impl_Addr
             0x40 => {
                 self.curr_op = Six502::rti;
-                self.addr_mode = Implied
-            } //(), // implied
+                self.addr_mode = Impl_Addr
+            } //(), // Impl_Addr
 
             // branches
             0x10 => {
                 self.curr_op = Six502::bpl;
-                self.addr_mode = Relative
-            } //(), // relative The byte after the opcode is the branch offset.
+                self.addr_mode = Rel_Addrs
+            } //(), // Rel_Addrs The byte after the opcode is the branch offset.
             0x30 => {
                 self.curr_op = Six502::bmi;
-                self.addr_mode = Relative
-            } //(), // relative
+                self.addr_mode = Rel_Addrs
+            } //(), // Rel_Addrs
             0x50 => {
                 self.curr_op = Six502::bvc;
-                self.addr_mode = Relative
-            } //(), // relative
+                self.addr_mode = Rel_Addrs
+            } //(), // Rel_Addrs
             0x70 => {
                 self.curr_op = Six502::bvs;
-                self.addr_mode = Relative
-            } //(), // relative
+                self.addr_mode = Rel_Addrs
+            } //(), // Rel_Addrs
             0x90 => {
                 self.curr_op = Six502::bcc;
-                self.addr_mode = Relative
-            } //(), // relative
+                self.addr_mode = Rel_Addrs
+            } //(), // Rel_Addrs
             0xb0 => {
                 self.curr_op = Six502::bcs;
-                self.addr_mode = Relative
-            } //(), // relative
+                self.addr_mode = Rel_Addrs
+            } //(), // Rel_Addrs
             0xd0 => {
                 self.curr_op = Six502::bne;
-                self.addr_mode = Relative
-            } //(), // relative
+                self.addr_mode = Rel_Addrs
+            } //(), // Rel_Addrs
             0xf0 => {
                 self.curr_op = Six502::beq;
-                self.addr_mode = Relative
-            } //(), // relative
+                self.addr_mode = Rel_Addrs
+            } //(), // Rel_Addrs
 
             // status flag changes
             0x18 => {
                 self.curr_op = Six502::clc;
-                self.addr_mode = Implied
-            } // (), // implied. In an implied instruction, the data and/or destination is mandatory for the instruction
+                self.addr_mode = Impl_Addr
+            } // (), // Impl_Addr. In an Impl_Addr instruction, the data and/or destination is mandatory for the instruction
             0x38 => {
                 self.curr_op = Six502::sec;
-                self.addr_mode = Implied
-            } // (); self.addr_mode = Implied} // implied
+                self.addr_mode = Impl_Addr
+            } // (); self.addr_mode = Impl_Addr} // Impl_Addr
             0x58 => {
                 self.curr_op = Six502::cli;
-                self.addr_mode = Implied
-            } // (), // implied
+                self.addr_mode = Impl_Addr
+            } // (), // Impl_Addr
             0x78 => {
                 self.curr_op = Six502::sei;
-                self.addr_mode = Implied
-            } // (), // implied
+                self.addr_mode = Impl_Addr
+            } // (), // Impl_Addr
             0xb8 => {
                 self.curr_op = Six502::clv;
-                self.addr_mode = Implied
-            } // (), // implied
+                self.addr_mode = Impl_Addr
+            } // (), // Impl_Addr
             0xd8 => {
                 self.curr_op = Six502::cld;
-                self.addr_mode = Implied
-            } // (), // implied
+                self.addr_mode = Impl_Addr
+            } // (), // Impl_Addr
             0xf8 => {
                 self.curr_op = Six502::sed;
-                self.addr_mode = Implied
-            } // (), // implied
+                self.addr_mode = Impl_Addr
+            } // (), // Impl_Addr
 
             // no-op
             0xea => {
                 self.curr_op = Six502::nop;
-                self.addr_mode = Implied
-            } //(Implied),
+                self.addr_mode = Impl_Addr
+            } //(Impl_Addr),
 
             _ => unimplemented!("op not unimplemented: {}", self.curr_op_num),
         };
+    }
+}
+
+
+pub trait WordAccess {
+    fn load_u16(&mut self) -> u16;
+    fn store_u16(&mut self, v: u16);
+}
+
+// blanket implementation of Word Access for every item that implements `ByteAccess`
+impl<T: ByteAccess> WordAccess for T {
+    // 6502 arranges integers in little-endian order. lower bytes first
+    fn load_u16(&mut self) -> u16 {
+        let page_0 = self.load_u8();
+        self.bump();
+        let page_1 = self.load_u8();
+        u16::from_le_bytes([page_0, page_1]) 
+    }
+
+    fn store_u16(&mut self, v: u16) {
+        self.store_u8(v as u8);
+        self.bump();
+        self.store_u8((v >> 8) as u8);
     }
 }

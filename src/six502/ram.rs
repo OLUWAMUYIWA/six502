@@ -1,7 +1,7 @@
 use super::Six502;
 use crate::{
-    bus::{ByteAccess, WordAccess},
     macros::impl_deref_mut,
+    bus::BusAccess,
 };
 use core::panic;
 use std::ops::{Deref, DerefMut, Index};
@@ -26,7 +26,7 @@ impl Ram {
     }
 }
 
-impl ByteAccess for Ram {
+impl BusAccess for Ram {
     // first 8192 bytes are for the ram. the ram is 2048 consecutive bytes mirrored three other times, consecutively
     fn load_u8(&mut self, addr: u16) -> u8 {
         self[(addr & 0x7ff) as usize]

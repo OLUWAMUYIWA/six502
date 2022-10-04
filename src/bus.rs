@@ -1,4 +1,4 @@
-use crate::macros::impl_deref_mut;
+use crate::{macros::impl_deref_mut};
 
 use super::six502::ram::Ram;
 use std::{
@@ -8,6 +8,12 @@ use std::{
     ops::{Deref, DerefMut},
     path::Path,
 };
+
+pub trait BusAccess {
+    fn load_u8(&mut self, addr: u16) -> u8 ;
+    fn store_u8(&mut self, addr: u16, v: u8);
+}
+
 
 #[derive(Debug)]
 pub(crate) struct Mem {
@@ -86,31 +92,6 @@ impl Mem {
     }
 }
 
-/// ByteAccess handles the loading and storage of u8 values. An implementor is an addressable member of the NES
-/// The memory address can be regarded as 256 pages (each page defined by the high order byte) of 256 memory locations (bytes) per page.
-pub trait ByteAccess {
-    fn load_u8(&mut self, addr: u16) -> u8;
-    fn store_u8(&mut self, addr: u16, v: u8);
-}
-
-pub trait WordAccess {
-    fn load_u16(&mut self, addr: u16) -> u16;
-    fn store_u16(&mut self, addr: u16, v: u16);
-}
-
-// blanket implementation of Word Access for every item that implements `ByteAccess`
-impl<T: ByteAccess> WordAccess for T {
-    // 6502 arranges integers in little-endian order. lower bytes first
-    fn load_u16(&mut self, addr: u16) -> u16 {
-        u16::from_le_bytes([self.load_u8(addr), self.load_u8(addr + 1)])
-    }
-
-    fn store_u16(&mut self, addr: u16, v: u16) {
-        self.store_u8(addr, v as u8);
-        self.store_u8(addr + 1, (v >> 8) as u8);
-    }
-}
-
 /// The DataBus
 /// data has to transfer between the accumulator and the internal registers of the microprocessor and outside sources by means of passing through
 ///  the microprocessor to 8 lines called the data bus. The outside sources include (in our case) the program
@@ -119,9 +100,9 @@ impl<T: ByteAccess> WordAccess for T {
 /// I/o operationS on this type of microprocessor are accomplished by reading and writing registers which
 /// actually represent connections to physical devices or to physical pins  which connect to physical devices.
 #[derive(Debug, Default)]
+#[repr(transparent)]
 pub(crate) struct DataBus {
     pub(crate) mem: Mem,
-    pub(crate) cycles: u64,
 }
 
 impl_deref_mut!(DataBus { mem, Mem });
@@ -132,9 +113,14 @@ impl DataBus {
             ..Default::default()
         }
     }
+
+    // comeback
+    pub fn set(&mut self, v: u8) {
+        todo!()
+    }
 }
 
-impl ByteAccess for DataBus {
+impl BusAccess for DataBus {
     fn load_u8(&mut self, addr: u16) -> u8 {
         match addr {
             a @ 0x0000..=0x00FF => self.load_zp(a),
@@ -153,3 +139,4 @@ impl ByteAccess for DataBus {
         }
     }
 }
+

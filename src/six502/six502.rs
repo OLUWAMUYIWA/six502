@@ -1,7 +1,9 @@
 use super::addressing::AddressingMode::*;
 use super::{Op, CYCLES};
-use crate::bus::{ByteAccess, DataBus, WordAccess};
+use crate::bus::{DataBus, BusAccess};
+use crate::ByteAccess;
 use crate::{AddressingMode, Cpu};
+use super::WordAccess;
 
 use super::{disasm::INSTRUCTIONS, vectors};
 
@@ -24,21 +26,26 @@ pub struct Six502 {
     pub(super) p: u8, 
     /// Sixteen bits of address allow access to 65,536 memory locations, each of which, in the MCS650X family, consists of 8 bits of data
     pub(crate) bus: DataBus,
-
+    pub(crate) data: u8,
 
     pub(crate) addr_bus: u16,
-    pub(crate) data: u8,
 }
 
 
 impl ByteAccess for Six502 {
-    fn load_u8(&mut self, addr: u16) -> u8 {
-        self.bus.load_u8(addr)
+    fn load_u8(&mut self) -> u8 {
+        self.bus.load_u8(self.addr_bus)
     }
 
-    fn store_u8(&mut self, addr: u16, v: u8) {
-        self.bus.store_u8(addr, v);
+    fn store_u8(&mut self, v: u8) {
+        self.bus.store_u8(self.addr_bus, v);
     }
+
+    fn bump(&mut self) {
+        self.addr_bus += 1;
+    }
+
+    
 }
 
 impl Default for Six502 {
@@ -63,23 +70,31 @@ impl Cpu for Six502 {
         Default::default()
     }
 
+    /// 
+    /// does not tick. expects the caller to
     fn load_u8_bump_pc(&mut self) -> u8 {
-        let addr = self.pc;
+        // first set the address bus
+        self.addr_bus = self.pc;
+        // bump pc
         self.pc = self.pc.wrapping_add(1);
-        self.data = self.load_u8(addr);
-        self.tick();
+        // place the pc on the address bus and load. the result is stored in cpu.data 
+        self.data = self.load_u8();
         self.data
     }
     
+    // comeback maybe we dont need this
     fn load_u16_bump_pc(&mut self) -> u16 {
         let mut addr = self.pc;
         self.pc = self.pc.wrapping_add(1);
-        self.data = self.load_u8(addr);
+        self.data = self.load_u8();
         self.tick();
         let lo = self.data;
+        
+        // bump the address in the addr bus
+        self.bump();
 
         addr = self.pc;
-        self.data = self.load_u8(addr);
+        self.data = self.load_u8();
         self.pc = self.pc.wrapping_add(1);
         self.tick();
         let hi = self.data;
@@ -112,11 +127,21 @@ impl Cpu for Six502 {
         Ok(())
     }
     
-    // fetch uses the address bus to fetch an opcode. It gets the u8 and bumps the pc
-    fn fetch_op(&mut self, op: &mut Op) {
-        let op_num = self.load_u8_bump_pc();
-        op.curr_op_num = op_num;
+    /// `fetch_op` uses the address bus to fetch an opcode. It gets the u8 and bumps the pc
+    /// `fetch_op` cannot be an atomic op because the internal operation of [Six502] during `fetch_op` varies
+    fn fetch_op(&mut self) {
+        //get the current op from the pc
+        self.load_u8_bump_pc();
     }
+
+    /// decodes the op fetched by setting the [Op]'s internal values, i.e. the `addr_mode`, `curr_up`, and `curr_op_num` 
+    fn decode_op(&mut self, op: &mut Op) {
+        use crate::six502::addressing::table::AddrTable;
+        op.curr_op_num = self.data;
+        op.addr_mode = AddrTable[op.curr_op_num as usize];
+        op.curr_op = todo!();
+    }
+
 
     /// The first byte of an instruction is called the OP CODE and is coded to contain the basic operation such as LDA
     /// then it has the data necessary to allow the microprocessor to interpret the address of the data on which the operation will occur
@@ -124,211 +149,212 @@ impl Cpu for Six502 {
     /// and incrementing again after. for a full operation, it may incr 1,2,3 or more times
     /// an instance is LDA absolute addressing. three increments. one for opcode. one for low addr byte. one for high addr byte
     fn exec(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        let op = self.load_u8_bump_pc();
-        let page_cross = match op {
+        self.load_u8_bump_pc();
+        let op = self.data;
+
+        match op {
             // load/stores
-            0xa1 => self.lda(XIdxd_Indirect),
-            0xa5 => self.lda(ZP),
+            0xa1 => self.lda(X_Idx_Ind),
+            0xa5 => self.lda(Zero_Page),
             0xa9 => self.lda(Immediate),
-            0xad => self.lda(Absolute),
-            0xb1 => self.lda(Indirect_Y_Idxd),
+            0xad => self.lda(Abs_Addrs),
+            0xb1 => self.lda(Ind_Y_Idx),
             0xb5 => self.lda(ZP_X_Idxd),
-            0xb9 => self.lda(Abs_Y_Idxd),
-            0xbd => self.lda(Abs_X_Idxd),
+            0xb9 => self.lda(AbsY_Idxd),
+            0xbd => self.lda(AbsX_Idxd),
 
             0xa2 => self.ldx(Immediate),
-            0xa6 => self.ldx(ZP),
-            0xae => self.ldx(Absolute),
+            0xa6 => self.ldx(Zero_Page),
+            0xae => self.ldx(Abs_Addrs),
             0xb6 => self.ldx(ZP_Y_Idxd),
-            0xbe => self.ldx(Abs_Y_Idxd),
+            0xbe => self.ldx(AbsY_Idxd),
 
             0xa0 => self.ldy(Immediate),
-            0xa4 => self.ldy(ZP),
-            0xac => self.ldy(Absolute),
+            0xa4 => self.ldy(Zero_Page),
+            0xac => self.ldy(Abs_Addrs),
             0xb4 => self.ldy(ZP_X_Idxd),
-            0xbc => self.ldy(Abs_X_Idxd),
+            0xbc => self.ldy(AbsX_Idxd),
 
-            0x81 => self.sta(XIdxd_Indirect),
-            0x85 => self.sta(ZP),
-            0x8d => self.sta(Absolute),
-            0x91 => self.sta(Indirect_Y_Idxd),
+            0x81 => self.sta(X_Idx_Ind),
+            0x85 => self.sta(Zero_Page),
+            0x8d => self.sta(Abs_Addrs),
+            0x91 => self.sta(Ind_Y_Idx),
             0x95 => self.sta(ZP_X_Idxd),
-            0x99 => self.sta(Abs_Y_Idxd),
-            0x9d => self.sta(Abs_X_Idxd),
+            0x99 => self.sta(AbsY_Idxd),
+            0x9d => self.sta(AbsX_Idxd),
 
-            0x86 => self.stx(ZP),
-            0x8e => self.stx(Absolute),
+            0x86 => self.stx(Zero_Page),
+            0x8e => self.stx(Abs_Addrs),
             0x96 => self.stx(ZP_Y_Idxd),
 
-            0x84 => self.sty(ZP),
-            0x8c => self.sty(Absolute),
+            0x84 => self.sty(Zero_Page),
+            0x8c => self.sty(Abs_Addrs),
             0x94 => self.sty(ZP_X_Idxd),
 
             // comparisons
-            0xc1 => self.cmp(XIdxd_Indirect),
-            0xc5 => self.cmp(ZP),
+            0xc1 => self.cmp(X_Idx_Ind),
+            0xc5 => self.cmp(Zero_Page),
             0xc9 => self.cmp(Immediate),
-            0xcd => self.cmp(Absolute),
-            0xd1 => self.cmp(Indirect_Y_Idxd),
+            0xcd => self.cmp(Abs_Addrs),
+            0xd1 => self.cmp(Ind_Y_Idx),
             0xd5 => self.cmp(ZP_X_Idxd),
-            0xd9 => self.cmp(Abs_Y_Idxd),
-            0xdd => self.cmp(Abs_X_Idxd),
+            0xd9 => self.cmp(AbsY_Idxd),
+            0xdd => self.cmp(AbsX_Idxd),
 
             0xe0 => self.cpx(Immediate),
-            0xe4 => self.cpx(ZP),
-            0xec => self.cpx(Absolute),
+            0xe4 => self.cpx(Zero_Page),
+            0xec => self.cpx(Abs_Addrs),
 
             0xc0 => self.cpy(Immediate),
-            0xc4 => self.cpy(ZP),
-            0xcc => self.cpy(Absolute),
+            0xc4 => self.cpy(Zero_Page),
+            0xcc => self.cpy(Abs_Addrs),
 
             // transfers
-            0xaa => self.tax(Implied),
-            0xa8 => self.tay(Implied),
-            0x8a => self.txa(Implied),
-            0x98 => self.tya(Implied),
-            0x9a => self.txs(Implied),
-            0xba => self.tsx(Implied),
+            0xaa => self.tax(Impl_Addr),
+            0xa8 => self.tay(Impl_Addr),
+            0x8a => self.txa(Impl_Addr),
+            0x98 => self.tya(Impl_Addr),
+            0x9a => self.txs(Impl_Addr),
+            0xba => self.tsx(Impl_Addr),
 
             // stack ops
-            0x08 => self.php(Implied), //implied addressing
-            0x28 => self.plp(Implied), //implied addressing
-            0x48 => self.pha(Implied), //implied addressing
-            0x68 => self.pla(Implied), //implied addressing
+            0x08 => self.php(Impl_Addr), //Implied addressing
+            0x28 => self.plp(Impl_Addr), //Implied addressing
+            0x48 => self.pha(Impl_Addr), //Implied addressing
+            0x68 => self.pla(Impl_Addr), //Implied addressing
 
             // logical ops
-            0x21 => self.and(XIdxd_Indirect),
-            0x25 => self.and(ZP),
+            0x21 => self.and(X_Idx_Ind),
+            0x25 => self.and(Zero_Page),
             0x29 => self.and(Immediate),
-            0x2d => self.and(Absolute),
+            0x2d => self.and(Abs_Addrs),
             0x35 => self.and(ZP_X_Idxd),
-            0x31 => self.and(Indirect_Y_Idxd),
-            0x39 => self.and(Abs_Y_Idxd),
-            0x3d => self.and(Abs_X_Idxd),
+            0x31 => self.and(Ind_Y_Idx),
+            0x39 => self.and(AbsY_Idxd),
+            0x3d => self.and(AbsX_Idxd),
 
-            0x01 => self.ora(XIdxd_Indirect),
-            0x05 => self.ora(ZP),
+            0x01 => self.ora(X_Idx_Ind),
+            0x05 => self.ora(Zero_Page),
             0x09 => self.ora(Immediate),
-            0x0d => self.ora(Absolute),
-            0x11 => self.ora(Indirect_Y_Idxd),
+            0x0d => self.ora(Abs_Addrs),
+            0x11 => self.ora(Ind_Y_Idx),
             0x15 => self.ora(ZP_X_Idxd),
-            0x1d => self.ora(Abs_X_Idxd),
-            0x19 => self.ora(Abs_Y_Idxd),
+            0x1d => self.ora(AbsX_Idxd),
+            0x19 => self.ora(AbsY_Idxd),
 
-            0x41 => self.eor(XIdxd_Indirect),
-            0x45 => self.eor(ZP),
+            0x41 => self.eor(X_Idx_Ind),
+            0x45 => self.eor(Zero_Page),
             0x49 => self.eor(Immediate),
-            0x4d => self.eor(Absolute),
-            0x51 => self.eor(Indirect_Y_Idxd),
+            0x4d => self.eor(Abs_Addrs),
+            0x51 => self.eor(Ind_Y_Idx),
             0x55 => self.eor(ZP_X_Idxd),
-            0x5d => self.eor(Abs_X_Idxd),
-            0x59 => self.eor(Abs_Y_Idxd),
+            0x5d => self.eor(AbsX_Idxd),
+            0x59 => self.eor(AbsY_Idxd),
 
             // bit test
             0x24 => {
-                self.bit(ZP) //bit test
+                self.bit(Zero_Page) //bit test
             }
             0x2c => {
-                self.bit(Absolute) // bit test
+                self.bit(Abs_Addrs) // bit test
             }
 
             // arithmetic ops
-            0x61 => self.adc(XIdxd_Indirect),
-            0x65 => self.adc(ZP),
+            0x61 => self.adc(X_Idx_Ind),
+            0x65 => self.adc(Zero_Page),
             0x69 => self.adc(Immediate),
-            0x6d => self.adc(Absolute),
-            0x71 => self.adc(Indirect_Y_Idxd),
+            0x6d => self.adc(Abs_Addrs),
+            0x71 => self.adc(Ind_Y_Idx),
             0x75 => self.adc(ZP_X_Idxd),
-            0x79 => self.adc(Abs_Y_Idxd),
-            0x7d => self.adc(Abs_X_Idxd),
+            0x79 => self.adc(AbsY_Idxd),
+            0x7d => self.adc(AbsX_Idxd),
 
-            0xe1 => self.sbc(XIdxd_Indirect),
-            0xe5 => self.sbc(ZP),
+            0xe1 => self.sbc(X_Idx_Ind),
+            0xe5 => self.sbc(Zero_Page),
             0xe9 => self.sbc(Immediate),
-            0xed => self.sbc(Absolute),
-            0xf1 => self.sbc(Indirect_Y_Idxd),
+            0xed => self.sbc(Abs_Addrs),
+            0xf1 => self.sbc(Ind_Y_Idx),
             0xf5 => self.sbc(ZP_X_Idxd),
-            0xf9 => self.sbc(Abs_Y_Idxd),
-            0xfd => self.sbc(Abs_X_Idxd),
+            0xf9 => self.sbc(AbsY_Idxd),
+            0xfd => self.sbc(AbsX_Idxd),
 
             //incrs and decrs
-            0xe6 => self.inc(ZP),
-            0xee => self.inc(Absolute),
+            0xe6 => self.inc(Zero_Page),
+            0xee => self.inc(Abs_Addrs),
             0xf6 => self.inc(ZP_X_Idxd),
-            0xfe => self.inc(Abs_X_Idxd),
+            0xfe => self.inc(AbsX_Idxd),
 
-            0xc6 => self.dec(ZP),
-            0xce => self.dec(Absolute),
+            0xc6 => self.dec(Zero_Page),
+            0xce => self.dec(Abs_Addrs),
             0xd6 => self.dec(ZP_X_Idxd),
-            0xde => self.dec(Abs_X_Idxd),
+            0xde => self.dec(AbsX_Idxd),
 
-            0xe8 => self.inx(Implied),
-            0xca => self.dex(Implied),
-            0xc8 => self.iny(Implied),
-            0x88 => self.dey(Implied),
+            0xe8 => self.inx(Impl_Addr),
+            0xca => self.dex(Impl_Addr),
+            0xc8 => self.iny(Impl_Addr),
+            0x88 => self.dey(Impl_Addr),
 
             // shifts
-            0x26 => self.rol(ZP),
-            0x2a => self.rol(Accumulator),
-            0x2e => self.rol(Absolute),
+            0x26 => self.rol(Zero_Page),
+            0x2a => self.rol(Acc_Addrs),
+            0x2e => self.rol(Abs_Addrs),
             0x36 => self.rol(ZP_X_Idxd),
-            0x3e => self.rol(Abs_X_Idxd),
+            0x3e => self.rol(AbsX_Idxd),
 
-            0x66 => self.ror(ZP),
-            0x6a => self.ror(Accumulator),
-            0x6e => self.ror(Absolute),
+            0x66 => self.ror(Zero_Page),
+            0x6a => self.ror(Acc_Addrs),
+            0x6e => self.ror(Abs_Addrs),
             0x76 => self.ror(ZP_X_Idxd),
-            0x7e => self.ror(Abs_X_Idxd),
+            0x7e => self.ror(AbsX_Idxd),
 
-            0x06 => self.asl(ZP),
-            0x0e => self.asl(Absolute),
-            0x0a => self.asl(Accumulator),
+            0x06 => self.asl(Zero_Page),
+            0x0e => self.asl(Abs_Addrs),
+            0x0a => self.asl(Acc_Addrs),
             0x16 => self.asl(ZP_X_Idxd),
-            0x1e => self.asl(Abs_X_Idxd),
+            0x1e => self.asl(AbsX_Idxd),
 
-            0x4a => self.lsr(Accumulator),
-            0x46 => self.lsr(ZP),
-            0x4e => self.lsr(Absolute),
+            0x4a => self.lsr(Acc_Addrs),
+            0x46 => self.lsr(Zero_Page),
+            0x4e => self.lsr(Abs_Addrs),
             0x56 => self.lsr(ZP_X_Idxd),
-            0x5e => self.lsr(Abs_X_Idxd),
+            0x5e => self.lsr(AbsX_Idxd),
 
             // jumps and calls
-            0x4c => self.jmp(Implied),          // absolute
-            0x6c => self.jmp_indirect(Implied), // indirect
+            0x4c => self.jmp(Impl_Addr),          // absolute
+            0x6c => self.jmp_indirect(Impl_Addr), // indirect
 
-            0x20 => self.jsr(Implied), // absolute
-            0x60 => self.rts(Implied), // implied. In an implied instruction, the data and/or destination is mandatory for the instruction
-            0x00 => self.brk(Implied), // implied
-            0x40 => self.rti(Implied), // implied
+            0x20 => self.jsr(Impl_Addr), // absolute
+            0x60 => self.rts(Impl_Addr), // Impl_Addr. In an Impl_Addr instruction, the data and/or destination is mandatory for the instruction
+            0x00 => self.brk(Impl_Addr), // Impl_Addr
+            0x40 => self.rti(Impl_Addr), // Impl_Addr
 
             // branches
-            0x10 => self.bpl(Implied), // relative The byte after the opcode is the branch offset.
-            0x30 => self.bmi(Implied), // relative
-            0x50 => self.bvc(Implied), // relative
-            0x70 => self.bvs(Implied), // relative
-            0x90 => self.bcc(Implied), // relative
-            0xb0 => self.bcs(Implied), // relative
-            0xd0 => self.bne(Implied), // relative
-            0xf0 => self.beq(Implied), // relative
+            0x10 => self.bpl(Impl_Addr), // The byte after the opcode is the branch offset.
+            0x30 => self.bmi(Impl_Addr), 
+            0x50 => self.bvc(Impl_Addr), 
+            0x70 => self.bvs(Impl_Addr), 
+            0x90 => self.bcc(Impl_Addr), 
+            0xb0 => self.bcs(Impl_Addr), 
+            0xd0 => self.bne(Impl_Addr), 
+            0xf0 => self.beq(Impl_Addr), 
 
             // status flag changes
-            0x18 => self.clc(Implied), // implied. In an implied instruction, the data and/or destination is mandatory for the instruction
-            0x38 => self.sec(Implied), // implied
-            0x58 => self.cli(Implied), // implied
-            0x78 => self.sei(Implied), // implied
-            0xb8 => self.clv(Implied), // implied
-            0xd8 => self.cld(Implied), // implied
-            0xf8 => self.sed(Implied), // implied
+            0x18 => self.clc(Impl_Addr), // Impl_Addr. In an Impl_Addr instruction, the data and/or destination is mandatory for the instruction
+            0x38 => self.sec(Impl_Addr), // Impl_Addr
+            0x58 => self.cli(Impl_Addr), // Impl_Addr
+            0x78 => self.sei(Impl_Addr), // Impl_Addr
+            0xb8 => self.clv(Impl_Addr), // Impl_Addr
+            0xd8 => self.cld(Impl_Addr), // Impl_Addr
+            0xf8 => self.sed(Impl_Addr), // Impl_Addr
 
             // no-op
-            0xea => self.nop(Implied),
+            0xea => self.nop(Impl_Addr),
 
             _ => unimplemented!("op not unimplemented: {}", op),
         };
         self.cy = self
             .cy
-            .wrapping_add(CYCLES[op as usize] as u64)
-            .wrapping_add(page_cross as u64);
+            .wrapping_add(CYCLES[op as usize] as u64);
 
         Ok(())
     }
@@ -342,7 +368,8 @@ impl Cpu for Six502 {
         // on the interrupt disable bit and to force the program counter to the vector location specified in locations
         // FFFC and FFFD and to load the first instruction from that location.
         // force the program counter to the vector location specified in locations FFFC and FFFD
-        self.pc = self.load_u16(vectors::RESET);
+        self.addr_bus = vectors::RESET;
+        self.pc = self.load_u16();
         self.p = 0b00110100;
 
         // just to be sure
@@ -352,9 +379,8 @@ impl Cpu for Six502 {
 
         // comeback. number of cycles should be 8, byt should include
     }
+
+    
 }
 
-pub trait Addressing {
-    fn dispatch_load(&mut self, mode: AddressingMode) -> u8;
-    fn dispatch_store(&mut self, v: u8, mode: AddressingMode);
-}
+
