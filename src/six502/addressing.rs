@@ -98,7 +98,7 @@ impl Addressing for Six502 {
                 self.atom(|c| p2 = c.load_u8_bump_pc());
                 self.atom(|c| {
                     let addr = u16::from_le_bytes([p1, p2]);
-                    self.addr_bus = addr;
+                    c.addr_bus = addr;
                     v = c.load_u8();
                 });
 
@@ -118,7 +118,7 @@ impl Addressing for Six502 {
                 if over {
                     self.atom(|c| {
                         p1 += 1;
-                        self.addr_bus = u16::from_le_bytes([p1, p2]);
+                        c.addr_bus = u16::from_le_bytes([p1, p2]);
                         v = c.load_u8();
                     });
                 } else {
@@ -155,7 +155,7 @@ impl Addressing for Six502 {
                     addr = c.load_u8_bump_pc();
                 });
                 self.atom(|c| {
-                    self.addr_bus = addr as u16;
+                    c.addr_bus = addr as u16;
                     v = c.load_u8();
                 });
                 v
